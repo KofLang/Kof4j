@@ -782,6 +782,30 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 15 LANDED 24/11 — the SPAWN of the runtime left the raw Linux
+  syscall ABI (known-bugs §1235).** `kof_process_spawn` opened the pipes,
+  forked, wired the child's stdin/stdout, marked `FD_CLOEXEC`, executed
+  (`execveat`) and waited (`wait4`) with raw syscalls — a face that does not
+  exist on the Darwin, where there is no syscall at all. The 25 sites now
+  call the seam family (`kof_plat_pipe2`, `kof_plat_fork`, `kof_plat_dup2`,
+  `kof_plat_exec`, `kof_plat_wait`, `kof_plat_kill`, `kof_plat_cloexec`):
+  the Linux bodies are the syscalls of always (the semantics do not change),
+  the Darwin bodies are the libSystem with the failure normalized to
+  `-errno`. **THE TWO MEASURED DIFFERENCES:** the Linux `pipe2` does not
+  exist on the Darwin — the body does `pipe` and then `fcntl(F_SETFD,
+  FD_CLOEXEC)` on both descriptors when the site asked for `O_CLOEXEC`; and
+  the Linux `execveat` does not either — with the `AT_FDCWD` it is the same
+  `execve`. **PROOF (executed):** `NativeMacOSProcessSeamE2ETest` 3/3
+  (RED-first — the raw syscall is back on the old tree); the process battery
+  15/15 (`ProcessResultContentE2ETest`, `ProcessResultNameE2ETest`,
+  `ProcessResultWholePrintE2ETest`, `ProcessRunCrossE2ETest`); the whole
+  runtime still ASSEMBLES and LINKS in the real Mach-O toolchain
+  (`NativeMacOSRuntimeAssemblyE2ETest` + `NativeMacOSLinkE2ETest`); the
+  seam ratchet **FALLS 127 → 103**. **THE NEXT ROWS:** the `kof_process_run`
+  face (the other half of the family, still raw), the SHELL pipeline, the
+  TLS ELF-only that the program carries (M-4), the M-7 runner and the
+  arm64 face.
+
   **M-6 SLICE 14 / M-7 FACE 1 LANDED 24/11 — the macOS runtime LINKS into a
   real Mach-O executable, proven on THIS host.** The zig toolchain ships a
   Mach-O linker, so the toolchain chain no longer needs the Apple host —

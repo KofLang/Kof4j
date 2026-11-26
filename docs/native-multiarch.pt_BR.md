@@ -784,6 +784,29 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 15 POUSADA 24/11 — o SPAWN do runtime saiu do ABI cru do
+  syscall Linux (known-bugs §1235).** O `kof_process_spawn` abria os pipes,
+  dava fork, ligava o stdin/stdout do filho, marcava `FD_CLOEXEC`,
+  executava (`execveat`) e esperava (`wait4`) com syscalls crus — uma face
+  que não existe no Darwin, onde não há syscall nenhum. Os 25 sítios agora
+  chamam a família da costura (`kof_plat_pipe2`, `kof_plat_fork`,
+  `kof_plat_dup2`, `kof_plat_exec`, `kof_plat_wait`, `kof_plat_kill`,
+  `kof_plat_cloexec`): os corpos Linux são os syscalls de sempre (a semântica
+  não muda), os corpos Darwin são a libSystem com a falha normalizada em
+  `-errno`. **AS DUAS DIFERENÇAS MEDIDAS:** o `pipe2` do Linux não existe no
+  Darwin — o corpo faz `pipe` e depois `fcntl(F_SETFD, FD_CLOEXEC)` nos dois
+  descritores quando o sítio pediu o `O_CLOEXEC`; e o `execveat` do Linux
+  também não — com o `AT_FDCWD` ele é o mesmo `execve`. **PROVA (executada):**
+  `NativeMacOSProcessSeamE2ETest` 3/3 (RED-first — o syscall cru volta na
+  árvore antiga); a bateria de processos 15/15 (`ProcessResultContentE2ETest`,
+  `ProcessResultNameE2ETest`, `ProcessResultWholePrintE2ETest`,
+  `ProcessRunCrossE2ETest`); o runtime inteiro ainda MONTA e LINCA no
+  toolchain real do Mach-O (`NativeMacOSRuntimeAssemblyE2ETest` +
+  `NativeMacOSLinkE2ETest`); o ratchet da costura **CAI 127 → 103**. **AS
+  PRÓXIMAS LINHAS:** a face `kof_process_run` (a outra metade da família,
+  ainda crua), o SHELL pipeline, o TLS ELF-only que o programa carrega (M-4),
+  o runner M-7 e a face arm64.
+
   **M-6 FATIA 14 / FACE 1 DA M-7 POUSADA 24/11 — o runtime macOS LINCA num
   executável Mach-O de verdade, provado NESTE host.** O toolchain do zig
   traz um linker Mach-O, então a cadeia de ferramentas não precisa mais do

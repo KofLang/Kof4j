@@ -370,6 +370,25 @@ public final class RuntimePlat {
     }
 
     /**
+     * M-2 (#1135): a família PROCESS da costura — os syscalls que o
+     * {@code kof_process_run}/{@code kof_spawn} faziam crus. O corpo Linux
+     * está em {@link RuntimePlatProc} e o do Darwin (a libSystem) em
+     * {@link RuntimePlatMacosProc}.
+     */
+    public static void emitPlatProc(StringBuilder sb) {
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacosProc.emitProc(sb);
+            return;
+        }
+        if (dev.kof.compiler.nat.NativeProfile.activeIsUefi()
+                || dev.kof.compiler.nat.NativeProfile.activeIsBios()) {
+            RuntimeBios.refuse(sb, "kof_plat_pipe2, kof_plat_fork, kof_plat_dup2, kof_plat_exec, kof_plat_wait, kof_plat_kill, kof_plat_cloexec");
+            return;
+        }
+        RuntimePlatProc.emitProc(sb);
+    }
+
+    /**
      * M-6 (#1135): a família HTTP/SOCKETS da costura — as chamadas que o core
      * do {@code kof.http} fazia direto. O contrato é o do SYSCALL Linux (os
      * sítios só trocam "movq $N, %rax; syscall" por "call": os argumentos já

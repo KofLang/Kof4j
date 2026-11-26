@@ -87,20 +87,17 @@ public final class RuntimeProcessSpawn {
                 # pipe2(out=0(%r14), 0)
                 leaq 0(%r14), %rdi
                 xorl %esi, %esi
-                movl $293, %eax
-                syscall
+                call kof_plat_pipe2
                 testq %rax, %rax
                 js .Lkof_spawn_sysfail
                 # pipe2(fail=8(%r14), O_CLOEXEC)
                 leaq 8(%r14), %rdi
                 movl $524288, %esi
-                movl $293, %eax
-                syscall
+                call kof_plat_pipe2
                 testq %rax, %rax
                 js .Lkof_spawn_sysfail
                 # fork
-                movl $57, %eax
-                syscall
+                call kof_plat_fork
                 testq %rax, %rax
                 js .Lkof_spawn_sysfail
                 jne .Lkof_spawn_parent
@@ -108,26 +105,20 @@ public final class RuntimeProcessSpawn {
                 # ── FILHO ─────────────────────────────────────────────
                 movl 4(%r14), %edi          # dup2(out_w → 1)
                 movl $1, %esi
-                movl $33, %eax
-                syscall
+                call kof_plat_dup2
                 movl 0(%r14), %edi          # close(out_r)
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 movl 8(%r14), %edi          # close(fail_r)
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 xorl %edi, %edi             # close(0)
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 leaq .Lkof_spawn_devnull(%rip), %rdi
                 xorl %esi, %esi
                 xorl %edx, %edx
-                movl $2, %eax
-                syscall                     # stdin = /dev/null
+                call kof_plat_open
                 xorl %edi, %edi             # dup2(0 → 2): stderr também /dev/null
                 movl $2, %esi               # (spawn não tem accessor de stderr;
-                movl $33, %eax              #  a JVM deixa um pipe não drenado)
-                syscall
+                call kof_plat_dup2              #  a JVM deixa um pipe não drenado)
                 # argv = [prog, args..., NULL] na pilha
                 movl 16(%r12), %r13d        # size
                 leal 2(%r13), %eax
@@ -171,16 +162,14 @@ public final class RuntimeProcessSpawn {
                 movl $3, %edi
                 movl $-1, %esi
                 movl $4, %edx
-                movl $436, %eax
-                syscall
+                call kof_plat_exec
                 testq %rax, %rax
                 jns .Lkof_spawn_cloexec_done
                 movl $3, %edi
             .Lkof_spawn_cloexec_loop:
                 movl $2, %esi
                 movl $1, %edx
-                movl $72, %eax
-                syscall
+                call kof_plat_cloexec
                 incl %edi
                 cmpl $1024, %edi
                 jl .Lkof_spawn_cloexec_loop
@@ -192,31 +181,25 @@ public final class RuntimeProcessSpawn {
                 leaq .Lkof_spawn_devnull(%rip), %rsi
                 movl $1, %edx
                 movl 12(%r14), %edi
-                movl $1, %eax
-                syscall
+                call kof_plat_write
                 movl $127, %edi
-                movl $60, %eax
-                syscall
+                call kof_plat_exit
 
                 # ── PAI ───────────────────────────────────────────────
             .Lkof_spawn_parent:
                 movl %eax, 16(%r14)         # pid
                 movl 4(%r14), %edi          # close(out_w)
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 movl 12(%r14), %edi         # close(fail_w)
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 # read(fail_r, buf, 1): >0 = exec falhou; 0 = exec ok
                 movl 8(%r14), %edi
                 leaq 24(%r14), %rsi
                 movl $1, %edx
-                xorl %eax, %eax
-                syscall
+                call kof_plat_read
                 movl %eax, %r15d
                 movl 8(%r14), %edi          # close(fail_r)
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 testl %r15d, %r15d
                 jg .Lkof_spawn_execfail
                 # sucesso: grava o slot
@@ -233,14 +216,12 @@ public final class RuntimeProcessSpawn {
                 jmp .Lkof_spawn_ret
             .Lkof_spawn_execfail:
                 movl 0(%r14), %edi          # close(out_r)
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 movl 16(%r14), %edi         # reap do filho falho
                 leaq 24(%r14), %rsi
                 xorl %edx, %edx
                 xorl %r10d, %r10d
-                movl $61, %eax
-                syscall
+                call kof_plat_wait
                 movq $-1, %rax
                 jmp .Lkof_spawn_ret
             .Lkof_spawn_sysfail:
@@ -275,8 +256,7 @@ public final class RuntimeProcessSpawn {
                 leaq 8(%rsp), %rsi
                 movl $1, %edx               # WNOHANG
                 xorl %r10d, %r10d
-                movl $61, %eax
-                syscall
+                call kof_plat_wait
                 testq %rax, %rax
                 jg .Lkof_alive_reaped
                 jl .Lkof_alive_neg
@@ -322,8 +302,7 @@ public final class RuntimeProcessSpawn {
                 leaq 8(%rsp), %rsi
                 movl $1, %edx
                 xorl %r10d, %r10d
-                movl $61, %eax
-                syscall
+                call kof_plat_wait
                 testq %rax, %rax
                 jg .Lkof_ec_nowdead
                 addq $32, %rsp
@@ -361,20 +340,17 @@ public final class RuntimeProcessSpawn {
                 jne .Lkof_kill_close
                 movl 0(%r9,%r8), %edi
                 movl $9, %esi               # SIGKILL
-                movl $62, %eax
-                syscall
+                call kof_plat_kill
                 subq $32, %rsp
                 movl 0(%r9,%r8), %edi
                 leaq 8(%rsp), %rsi
                 xorl %edx, %edx
                 xorl %r10d, %r10d
-                movl $61, %eax
-                syscall
+                call kof_plat_wait
                 addq $32, %rsp
             .Lkof_kill_close:
                 movl 4(%r9,%r8), %edi
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 movl $0, 8(%r9,%r8)         # esquece o handle (exitCode -1)
                 movl $-1, 12(%r9,%r8)
             .Lkof_kill_ret:
@@ -405,8 +381,7 @@ public final class RuntimeProcessSpawn {
                 movl %r13d, %edi
                 leaq (%rbx,%r12), %rsi
                 movl $1, %edx
-                xorl %eax, %eax
-                syscall
+                call kof_plat_read
                 testq %rax, %rax
                 jle .Lkof_rl_build           # EOF/erro
                 movzbl (%rbx,%r12), %eax
