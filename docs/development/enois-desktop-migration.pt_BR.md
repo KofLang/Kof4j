@@ -1798,3 +1798,22 @@ mesma causa: UMA face estática por `Font`). O teste está VERMELHO de propósit
 bloqueia a bateria (é pendência documentada, não regressão). PRÓXIMO: trazer `Manrope-Regular.ttf` (a
 face do site) para `assets/fonts/` e apontar o `app/Main.kf` e os testes para ela; depois as faces
 `font-medium` (500) e `italic`, e só então o peso por trecho no `BlogCuerpoRich`.
+
+## §99 (25/11) — o app agora carrega as faces da Manrope DO SITE (Regular 400 + Medium 500), e os testes de geometria que prendiam larguras de texto se moveram com elas
+
+MEDIDA e corrigida a divergência do §98: a `assets/fonts/Manrope.ttf` antiga era a **ExtraLight** estática
+(`usWeightClass = 250`, `name[1] = "Manrope ExtraLight"`, sem `fvar`). Eu baixei a Manrope oficial
+(`fonts.googleapis.com/css2?family=Manrope:wght@200..800`, o subconjunto latin variável v23, SIL OFL) e
+INSTANCIEI as duas faces que o site usa com fontTools (`instantiateVariableFont({'wght': 400})` e
+`{'wght': 500}`), corrigindo a tabela `name` para `Manrope / Regular` e `Manrope / Medium`, mais o texto
+da OFL em `assets/fonts/OFL.txt`. O `EnoisManropeFaceE2ETest` foi **VERMELHO → VERDE**.
+Toda referência a `assets/fonts/Manrope.ttf` (app + todos os testes) aponta agora para
+`Manrope-Regular.ttf`.
+
+BATERIA: **96 testes / 6 falhas** — a do §1197 mais CINCO que prendiam LARGURAS DE TEXTO da face fina
+(`EnoisPostActions`, `EnoisModeracao`, `EnoisMentoring`, `EnoisJobs`, `EnoisCommunityMembers`): por
+exemplo `btn12=48` (px-2 16 + gap 6 + os dois dígitos 10 +…) mede o `dígito` mais largo com a Regular.
+Essas asserções codificam o avanço da fonte ANTIGA (errada), não o do site — cada uma precisa do valor
+MEDIDO na face REGULAR, que é o objetivo da troca do asset. PRÓXIMO (nomeado, por tela): remedir cada uma
+das cinco com a Regular e atualizar os números presos com a fonte de cada (o padding do CSS + o avanço
+da fonte), nunca copiando a saída atual às cegas.

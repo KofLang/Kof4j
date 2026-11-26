@@ -2103,3 +2103,21 @@ root cause: ONE static face per `Font`). The test is RED on purpose and records 
 block the battery (it is a documented pending, not a regression). NEXT: bring `Manrope-Regular.ttf`
 (the site's face) into `assets/fonts/` and point `app/Main.kf` and the tests at it; then the
 `font-medium` (500) and `italic` faces, and only then the per-span weight in `BlogCuerpoRich`.
+
+## §99 (25/11) — the app now carries the SITE's Manrope faces (Regular 400 + Medium 500), and the geometry tests that pinned text widths moved with them
+
+MEASURED and fixed the §98 divergence: the old `assets/fonts/Manrope.ttf` was the static **ExtraLight**
+(`usWeightClass = 250`, `name[1] = "Manrope ExtraLight"`, no `fvar`). I fetched the official Manrope
+(`fonts.googleapis.com/css2?family=Manrope:wght@200..800`, i.e. the variable latin subset v23, SIL OFL)
+and INSTANCED the two faces the site needs with fontTools (`instantiateVariableFont({'wght': 400})`
+and `{'wght': 500}`), fixing the `name` table to `Manrope / Regular` and `Manrope / Medium`, plus the
+OFL text in `assets/fonts/OFL.txt`. `EnoisManropeFaceE2ETest` went **RED → GREEN**.
+Every `assets/fonts/Manrope.ttf` reference (app + all tests) now points at `Manrope-Regular.ttf`.
+
+BATTERY: **96 tests / 6 failures** — the §1197 one plus FIVE that were pinning TEXT WIDTHS of the
+thin face (`EnoisPostActions`, `EnoisModeracao`, `EnoisMentoring`, `EnoisJobs`, `EnoisCommunityMembers`):
+e.g. `btn12=48` (px-2 16 + gap 6 + the two digits 10 +…) now measures `digit` wider with the Regular.
+These assertions encode the OLD (wrong) font's advance, not the site's — each needs the measured value
+from the REGULAR face, which is the point of the asset change. NEXT (named, per screen): re-measure each
+of the five with the Regular and update the pinned numbers with the source of each (the CSS padding +
+the font advance), never by copying the current output blindly.
