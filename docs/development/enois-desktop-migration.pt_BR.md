@@ -2162,3 +2162,11 @@ O QUE A MEDIÇÃO LIMPA DISSE: depois de limpar o tmpfs e reconstruir o `lib/kof
 REGISTRADO (`known-bugs` §1246, EN+PT, reescrito): o defeito é do caminho semântico do `listOf`, não do emissor nativo; a leitura da chamada do parser fica RETIRADA com a contraprova 5/5; as leituras do §1240 são nomeadas como a mesma classe de jar obsoleto e re-verificadas como não reproduzidas aqui. PRÓXIMO (nomeado): imprimir o cabeçalho da lista (`count` em +16) dentro do `go` para duas chamadas, depois o dump do IR do `go` de 6 linhas e uma correção com `E2ETest` em `kof-compiler/src/test/java` afirmando que `a=1 b=1` deixou de existir.
 
 APP: nenhuma mudança no app nesta rodada (a bateria continua em 113 testes / 2 falhas, §1197 + o flake §1244).
+
+## §123 (26/11) — A MENOR FORMA DO §1246: `listOf` + `add` + `size` responde 1 na PRIMEIRA chamada e 1 em TODAS as seguintes, no caminho COMPARTILHADO do frontend/interpretação (JVM, interpretador do Script e nativo concordam), com um teste RED no lugar
+
+MEDIDO pelo CLI em três jars (`kof_clean.jar` de um `bd9730a90` pristino, `909093722`, HEAD): `class G { static Int go(String s) { val out = listOf<String>(); out.add(s); return out.size() } } main() { println("a=" + G.go("um")); println("b=" + G.go("dois")) }` → `a=1 b=1`; o interpretador do Script rodando o mesmo IR preparado → `a=1 b=1`; uma chamada só responde certo (`p.add("x"); p.size()` → 1); `var a = …; var b = …` dá o mesmo. Então o defeito está no caminho compartilhado do frontend/interpretação, não no emissor nativo. O IR do `go` mostra uma SEGUNDA `KofLoadLocal` do slot da lista antes do `KofCall[size]` que o código-fonte não tem (a primeira serve de receptor do `add`, a segunda é uma releitura depois dele) — a linha a examinar.
+
+RED NO LUGAR: `kof-compiler/src/test/java/dev/kof/compiler/NativeListSizeTwoCallsE2ETest.java` exige `a=1 b=2` no nativo e no oráculo JVM e FALHA nos dois (`a=1 b=1`, `a=1 b=1`). Ele fica NÃO commitado de propósito — a próxima fatia corrige a releitura e commita RED+GREEN juntos (nunca commitar teste vermelho).
+
+APP: nenhuma mudança no app nesta rodada (a bateria de 113 testes continua em 2 falhas: §1197 e o flake do §1244; uma das duas rodadas do `EnoisBlogCuerpoWrapInsideE2ETest` caiu no flake, a outra passou).

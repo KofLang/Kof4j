@@ -2464,3 +2464,11 @@ WHAT THE CLEAN MEASUREMENT SAID: after the tmpfs was cleaned and `lib/kof.jar` w
 RECORDED (`known-bugs` §1246, EN+PT, rewritten): the defect is `listOf`'s semantic path, not the native emitter; the parser-call reading is WITHDRAWN with the 5/5 counter-evidence; the §1240 readings are named as the same stale-jar class and re-verified as not reproduced here. NEXT (named): a print of the list header (`count` at +16) inside `go` for two calls, then the IR dump of the 6-line `go` and a fix with an E2ETest in `kof-compiler/src/test/java` asserting `a=1 b=1` is gone.
 
 APP: no app change this round (the app battery stays at 113 tests / 2 failures, §1197 + the §1244 flake).
+
+## §123 (26/11) — THE §1246 SMALLEST SHAPE: `listOf` + `add` + `size` answers 1 on the FIRST call and 1 on EVERY call after it, in the SHARED frontend/interpretation path (JVM, Script interpreter and native all agree), with a RED test in place
+
+MEASURED with the CLI on three jars (`kof_clean.jar` from a pristine `bd9730a90`, `909093722`, HEAD): `class G { static Int go(String s) { val out = listOf<String>(); out.add(s); return out.size() } } main() { println("a=" + G.go("um")); println("b=" + G.go("dois")) }` → `a=1 b=1`; the Script interpreter running the same prepared IR → `a=1 b=1`; a single call is right (`p.add("x"); p.size()` → 1); `var a = …; var b = …` is the same. So the defect is in the shared frontend/interpreter path, not in the native emitter. The IR of `go` shows a SECOND `KofLoadLocal` of the list slot before `KofCall[size]` that the source does not have (the first serves the receiver of `add`, the second is a re-read after it) — the line to examine.
+
+RED IN PLACE: `kof-compiler/src/test/java/dev/kof/compiler/NativeListSizeTwoCallsE2ETest.java` asserts `a=1 b=2` on native and on the JVM oracle and FAILS on both (`a=1 b=1`, `a=1 b=1`). It is left UNCOMMITTED on purpose — the next slice fixes the re-read and commits RED+GREEN together (never commit a red test).
+
+APP: no app change this round (the batch of 113 tests stays at 2 failures: §1197 and the §1244 flake; one of the two runs of `EnoisBlogCuerpoWrapInsideE2ETest` hit the flake, the other passed).
