@@ -1671,3 +1671,22 @@ bug REAL de semântica achado no caminho — `continue` dentro de `if` de laço 
 do if para o topo do laço, então a atualização nunca roda e o laço nunca termina nos DOIS alvos — é o
 `known-bugs §1232` (ABERTO, medido com javap). Próximo passo nomeado: a bateria inteira do app (91
 classes, rodando) e depois os blocos do rich-text pintados no card do post.
+
+## §92 (25/11) — o corpo do post agora PINTA os BLOCOS ricos (título / lista / citação / código / tabela / divisor / parágrafo), cada um na sua linha de base, no lugar do texto cru
+
+MEDIDO (app `libs/BlogCuerpoRich.kf` + `EnoisBlogCuerpoRichE2ETest`, nativo x86-64 pelo harness):
+`RichText.blocks("# T\n\n- a\n- b")` são 2 blocos (título + lista — o `parseRichText` do front só
+empilha parágrafo `if (text.trim() !== "")`, DS `parse.ts:72`), a base do título é
+`8 (mt-2) + 20 (linha do texto) = 28`, a do primeiro item da lista é `32 + 8 (my-2) + 20 = 60` e a
+altura da caminhada é `92` — tudo asserido. A cor é rastreada até o `Tokens` (`Foreground` para o
+texto, `MutedForeground` para citação/código); nenhum teste afirma cor amostrada (§1197). O quadro é
+apresentado (`b.present(DrawList())`).
+
+BATERIA: 90 testes / 1 falha — a que resta é o `EnoisTextE2ETest` `0 px` (§1197). Isso fecha a
+pendência nomeada "o parser rico ligado no card": o parser agora termina no nativo (o Kof4j §1230
+consertou o `trim` de string só de brancos) e a pintura existe como widget pronto para ser chamado
+pela linha do card.
+
+PRÓXIMO: o `heightFor(titleLines, bodyLines)` do card tira as linhas do corpo do
+`BlogCuerpo.wrappedLines`; trocar essa linha pela superfície de blocos do `BlogCuerpoRich`
+(`RichText.height` + a dobra por bloco) é a próxima fatia, com os números medidos como prova.

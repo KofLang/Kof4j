@@ -1976,3 +1976,22 @@ the REAL semantic bug found on the way — `continue` inside an `if` of a loop r
 jump to the loop head, so the update never runs and the loop never ends on BOTH targets — is
 `known-bugs §1232` (OPEN, javap-measured). Next named step: the app's full battery (91 classes,
 running) and then the rich-text blocks painted in the post card.
+
+## §92 (25/11) — the post body now paints the RICH BLOCKS (heading / list / quote / code / table / divider / paragraph), each on its own baseline, instead of the raw text
+
+MEASURED (app `libs/BlogCuerpoRich.kf` + `EnoisBlogCuerpoRichE2ETest`, native x86-64 through the
+harness): `RichText.blocks("# T\n\n- a\n- b")` is 2 blocks (heading + list — the front's
+`parseRichText` only pushes a paragraph `if (text.trim() !== "")`, DS `parse.ts:72`), the title's
+baseline is `8 (mt-2) + 20 (text line) = 28`, the list's first item is `32 + 8 (my-2) + 20 = 60`,
+and the walk's height is `92` — all asserted. The colour is traced to `Tokens` (`Foreground`
+for body text, `MutedForeground` for quote/code); no test asserts sampled colour (§1197).
+The frame is presented (`b.present(DrawList())`).
+
+BATTERY: 90 tests / 1 failure — the remaining one is `EnoisTextE2ETest` `0 px` (§1197).
+This closes the named pending "the rich parser wired into the card": the parser now runs to
+completion on native (Kof4j §1230 fixed the `trim` of an all-blank string), and the painting
+exists as a widget ready to be called by the card row.
+
+NEXT: the card's `heightFor(titleLines, bodyLines)` takes the body's line count from
+`BlogCuerpo.wrappedLines`; switching that row to `BlogCuerpoRich`'s block surface
+(`RichText.height` + the per-block wrap) is the next slice, with the measured numbers as proof.
