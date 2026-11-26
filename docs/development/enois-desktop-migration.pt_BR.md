@@ -2124,3 +2124,13 @@ CORREÇÃO (app `0aa94ea`): `codeWidest(f, lines)` (o avanço medido da linha ma
 PROVA (executada): `EnoisBlogCuerpoCodeBoxE2ETest` (nativo) — `tipo=codeBlock linhas=2`, `larga=372` (a linha longa em 14 px), `altura=64` (`12 + 40 + 12`), `cabe=true` (`12 + 372 + 12 > 100`, a coluna estreita em que o teste pinta), quadro apresentado; 2/2. O `EnoisBlogCuerpoCodeE2ETest` que já existia continua verde. Bateria **111 testes / 1 falha** (só o `0 px` do §1197).
 
 PENDÊNCIA NOMEADA (sem mudança): a face do `<code>` é a do corpo porque o DS não traz um asset MONO; a caixa do `<code>` inline ainda é desenhada depois do glifo (nota do §111).
+
+## §119 (26/11) — O DIVISOR PINTA O FIO: o `- - -` era medido (25) e nunca desenhado; e a altura do parágrafo na caminhada é a pendência nomeada nova (40 para um parágrafo de uma linha)
+
+MEDIDO (DS `rich-text.tsx:117`: `<hr className="my-3 border-border-soft">`): o `border-top` do `hr` é 1 px na cor da borda, com `my-3` (12) de cada lado e a largura da coluna. O bloco existia no parser (`kind = divider`) e a altura dele já estava na caminhada (`RichTextMetrics.dividerGapY() * 2 + 1` = 25), mas o `paintWrappedMarkedAt` não tinha ramo para ele — nada era desenhado.
+
+CORREÇÃO (app `f5db5c4`): `paintDivider(b, blk, x, top, width)` desenha o fio de 1 px em `top + 12` com a largura da coluna, em `Tokens.BorderSoft()`, no ramo antes do caminho inline genérico.
+
+PROVA (executada): `EnoisBlogCuerpoDividerE2ETest` (nativo) — `blocos=3`, `tipo=divider`, `altura=25`, `total=105` (40 + 25 + 40), `base=85`; 2/2. Bateria **112 testes / 2 falhas** — o `0 px` do §1197 e o flake §1244 no `EnoisBlogCuerpoWrapInsideE2ETest`.
+
+MEDIDO NO CAMINHO (README do app, `known-bugs` não tocado): um parágrafo NÃO VAZIO reporta 40 no `RichText.blockHeight` (`paragraph#0#40` para o `antes` de uma linha) enquanto os outros tipos batem com o DS (o divisor sozinho mede 25) — o `n = 1` inicial mais uma linha por bloco. A caminhada reserva 20 px a mais depois de cada parágrafo. É uma correção de medição do APP, não um gap do compilador; PRÓXIMO (nomeado): reconciliar o `RichText.blockHeight` dos parágrafos com o DS (uma linha = 20, e conferir o +1 por bloco do `RichText.height` contra a mesma regra) mantendo todos os testes de base atuais verdes, e re-medir o `baselineOf` do caso das listas (`base1=60` no `EnoisBlogCuerpoRichE2ETest`).

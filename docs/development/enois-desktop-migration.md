@@ -2426,3 +2426,13 @@ FIX (app `0aa94ea`): `codeWidest(f, lines)` (the measured advance of the widest 
 PROOF (executed): `EnoisBlogCuerpoCodeBoxE2ETest` (native) — `tipo=codeBlock linhas=2`, `larga=372` (the long line at 14 px), `altura=64` (`12 + 40 + 12`), `cabe=true` (`12 + 372 + 12 > 100`, the narrow column the test paints into), frame presented; 2/2. `EnoisBlogCuerpoCodeE2ETest` (the existing `drawImage`-free code test) still green. Battery **111 tests / 1 failure** (only the §1197 `0 px`).
 
 NAMED PENDING (unchanged): the `<code>` face is the body's because the DS ships no MONO asset; the inline `<code>` box is still drawn after the glyph (§111 note).
+
+## §119 (26/11) — THE DIVIDER DRAWS ITS RULE: the `- - -` was measured (25) and never painted; and the walk's paragraph height is the new named pending (40 for a one-line paragraph)
+
+MEASURED (DS `rich-text.tsx:117`: `<hr className="my-3 border-border-soft">`): the `hr`'s `border-top` is 1 px in the border colour, `my-3` (12) on each side, the column width. The block existed in the parse (`kind = divider`) and its height was already in the walk (`RichTextMetrics.dividerGapY() * 2 + 1` = 25) but `paintWrappedMarkedAt` had no branch for it — nothing was drawn.
+
+FIX (app `f5db5c4`): `paintDivider(b, blk, x, top, width)` draws the 1 px rule at `top + 12` with the column width, in `Tokens.BorderSoft()`, in the branch before the generic inline path.
+
+PROOF (executed): `EnoisBlogCuerpoDividerE2ETest` (native) — `blocos=3`, `tipo=divider`, `altura=25`, `total=105` (40 + 25 + 40), `base=85`; 2/2. Battery **112 tests / 2 failures** — the §1197 `0 px` and the §1244 flake on `EnoisBlogCuerpoWrapInsideE2ETest`.
+
+MEASURED ON THE WAY (app README, `known-bugs` not touched): a NON-BLANK paragraph reports 40 from `RichText.blockHeight` (`paragraph#0#40` for the one-line `antes`) while the other block kinds match the DS (the divider alone is 25) — `blockHeight`'s `n = 1` initial plus one more line per block. The walk therefore reserves 20 extra px after every paragraph. This is an APP-side measurement fix, not a compiler gap; NEXT (named): reconcile `RichText.blockHeight` for paragraphs with the DS (one line = 20, and `RichText.height`'s per-block +1 must be checked against the same rule) while keeping every existing baseline test green, and re-measure `baselineOf` for the list case (`base1=60` in `EnoisBlogCuerpoRichE2ETest`).
