@@ -1989,3 +1989,30 @@ BATERIA: **105 testes / 1 falha** (só o `EnoisTextE2ETest` `0 px`, §1197).
 
 PENDÊNCIA NOMEADA ainda aberta: a face MONO do `<code>` e as faces do itálico (`em`/`<s>`) — ASSETS que
 faltam, não código. A leitura de pixel do `§1197` continua barrando a prova de cor.
+
+## §110 (26/11) — O ITÁLICO DO `<em>`: medido no próprio motor do site, desenhado como o oblique que o navegador sintetiza
+
+MEDIDO (Chromium do cache do Playwright = o motor do site; o CSS oficial do Manrope v23 em
+`fonts.googleapis.com/css2?family=Manrope:ital,wght@…` devolve SÓ `font-style: normal`; `font-style: italic`
+num texto Manrope mede a MESMA largura do reto — 200,05 px nas duas): o `<em className="italic">` do DS
+(`domain/post/rich-text.tsx:246`) é um oblique SINTETIZADO pelo navegador, 14° sobre a face reta, com o avanço
+inalterado. O desktop agora reproduz isso: `game.Sdl3Backend.drawTextureSheared` (a textura do glifo desenhada
+linha a linha, a linha `r` deslocada `shear*r/h`, largura `w+shear`) mais `Text.Font.shearPx()`
+(`(px*249+500)/1000` — 3 em 14, 4 em 16, 7 em 28) e `Font.drawTextSlanted`; o `BlogCuerpoRich.paintSpansMarked`
+escolhe a inclinação por TRECHO (`slantOf`: só o `italic`). O extern `SDL_RenderTexture` passou a declarar
+`src` como `Buffer(U8)` — `Long` no 3º argumento não compila (SEM014, medido) — e sempre vai o SDL_FRect
+`0,0,w,h` (o mesmo recorte); `drawTexture(…)` é `drawTextureSheared(…, 0)`.
+
+PROVA (executada): `EnoisBlogCuerpoItalicE2ETest` (app, nativo): `trechos=3`, `t1=italic`, `shear=3,4,7`,
+`slantaItalico=3`, `slantTexto=0`, `slantNegrito=0`, `avanco=59` (o avanço da face reta), `penAvanca=true`.
+`Sdl3ShearedTextureE2ETest` (Kof4j, o caminho de pixel do §1190): uma textura 4×16 branca com shear 8 → linhas
+0/8/15 brancas em x=1/5/11, x=0 na linha 15 preto, e o CONTROLE sem inclinação branco em x=0 na linha 15. O
+`Sdl3BackendE2ETest` 6/6 e o `EnosisImageTextureE2ETest` 1/1 continuam verdes.
+
+BATERIA: **106 testes / 1 falha** (só o `EnoisTextE2ETest` `0 px`, §1197).
+
+DIVERGÊNCIAS NOMEADAS ainda abertas: o deslocamento por linha é inteiro (o CSS é subpixel) e a inclinação
+sintetizada é de 14° (o valor do eixo que o `italic` usa), que pode diferir em 1 grau do eixo óptico do motor; a
+família MONO do `<code>` (`--font-mono` é a pilha padrão do Tailwind, sem asset no DS) e a caixa do `<code>`
+desenhada DEPOIS do glifo (ela cobre o texto — a caixa é do fundo, vai antes do trecho). O §1197 continua
+barrando a prova de cor.

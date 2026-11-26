@@ -2293,3 +2293,29 @@ BATTERY: **105 tests / 1 failure** (only `EnoisTextE2ETest` `0 px`, §1197).
 
 NAMED PENDING still open: the MONO face of `<code>` and the italic faces (`em`/`<s>`) — missing ASSETS, not
 code. The `§1197` pixel readback still blocks colour proof.
+
+## §110 (26/11) — THE `<em>` ITALIC: measured in the site's own engine, drawn as the browser's synthesized oblique
+
+MEASURED (Chromium of the Playwright cache = the site's engine; the official Manrope CSS v23 from
+`fonts.googleapis.com/css2?family=Manrope:ital,wght@…` returns ONLY `font-style: normal`; `font-style: italic`
+on a Manrope run measures the same width as the upright — 200.05 px both ways): the DS's `<em
+className="italic">` (`domain/post/rich-text.tsx:246`) is a browser-SYNTHESIZED oblique, 14° over the
+upright face, and the advance is unchanged. The desktop now reproduces that: `game.Sdl3Backend.drawTextureSheared`
+(glyph texture drawn row by row, row `r` shifted `shear*r/h`, width `w+shear`) plus `Text.Font.shearPx()`
+(`(px*249+500)/1000` — 3 at 14, 4 at 16, 7 at 28) and `Font.drawTextSlanted`; `BlogCuerpoRich.paintSpansMarked`
+picks the slant by SPAN (`slantOf`: only `italic`). The extern `SDL_RenderTexture` now declares `src` as
+`Buffer(U8)` — `Long` in argument 3 does not compile (SEM014, measured) — and we always pass the 8 floats
+`0,0,w,h` (the same crop); `drawTexture(…)` is `drawTextureSheared(…, 0)`.
+
+PROOF (executed): `EnoisBlogCuerpoItalicE2ETest` (app, native): `trechos=3`, `t1=italic`, `shear=3,4,7`,
+`slantaItalico=3`, `slantTexto=0`, `slantNegrito=0`, `avanco=59` (the upright advance), `penAvanca=true`.
+`Sdl3ShearedTextureE2ETest` (Kof4j, §1190's pixel path): a 4×16 white texture at shear 8 → rows 0/8/15 white at
+x=1/5/11, x=0 at row 15 black, and the CONTROL without shear white at x=0 on row 15. `Sdl3BackendE2ETest`
+6/6 + `EnosisImageTextureE2ETest` 1/1 still green.
+
+BATTERY: **106 tests / 1 failure** (only `EnoisTextE2ETest` `0 px`, §1197).
+
+NAMED DIVERGENCES still open: the per-row shift is integer (the CSS is subpixel) and the synthesized slant is
+14° (the axis value used by `italic`), which may differ from the engine's optical axis by a degree; the MONO
+family of `<code>` (`--font-mono` is the Tailwind default stack, no asset in the DS) and the `<code>` box
+drawn AFTER the glyph (it covers the text — the box belongs before the run). §1197 still blocks colour proof.
