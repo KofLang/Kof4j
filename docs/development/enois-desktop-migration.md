@@ -2160,3 +2160,18 @@ BATTERY: **97 tests / 1 failure** — the only one is `EnoisTextE2ETest` (`0 px`
 NAMED PENDING left in the body's typography: the ITALIC (the site's `em`/`<s>` faces are not in the
 repo yet — only Regular and Medium were instanced), and the `code` span (the DS renders it `text-sm`,
 13 px, which is a size change, not only a face).
+
+## §102 (26/11) — the CODE BLOCK of the post body is drawn: the `Surface1` box with `p-3`, the author's lines inside it in `text-sm`
+
+MEASURED (app `BlogCuerpoRich.paintCodeBlock`/`codeLines`, `EnoisBlogCuerpoCodeE2ETest` on native):
+`blocks("```\nlinha um\nlinha dois\n```")` gives ONE block of kind `codeBlock`; its two author lines are
+split by `codeLines` (2), and the drawn box is `p-3 12 + 2 lines × 20 + p-3 12 = 64` — the `my-2` (8+8)
+stays the block's margin, which is what the measured `RichText.codeHeight(2) = 80` accounts for
+(8 + 12 + 40 + 12 + 8). Before this slice the block was painted as flat text (one line, no box), so the
+code fence was the last richly-shaped block still missing its drawing.
+
+BATTERY: **98 tests / 1 failure** — the only one is `EnoisTextE2ETest` (`0 px`, §1197).
+
+NAMED PENDING (typography, unchanged by this slice): the site renders `<code>` in the MONO family and at
+`text-sm` — the mono face is NOT in the app's assets, so the block's text is drawn in the body face for
+now; and the ITALIC (`em`/`<s>`) faces are not instanced either (only Regular 400 and Medium 500 are).

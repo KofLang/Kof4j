@@ -1856,3 +1856,18 @@ BATERIA: **97 testes / 1 falha** — a única é o `EnoisTextE2ETest` (`0 px`, �
 PENDÊNCIA NOMEADA restante na tipografia do corpo: o ITÁLICO (as faces do `em`/`<s>` do site ainda não estão
 no repositório — só a Regular e a Medium foram instanciadas), e o trecho `code` (o DS o renderiza `text-sm`,
 13 px, que é troca de TAMANHO, não só de face).
+
+## §102 (26/11) — o bloco de CÓDIGO do corpo é desenhado: a caixa `Surface1` com o `p-3` e as linhas do autor em `text-sm`
+
+MEDIDO (app `BlogCuerpoRich.paintCodeBlock`/`codeLines`, `EnoisBlogCuerpoCodeE2ETest` no nativo):
+`blocks("```\nlinha um\nlinha dois\n```")` dá UM bloco de tipo `codeBlock`; as duas linhas do autor saem
+quebradas pelo `codeLines` (2), e a caixa desenhada é `p-3 12 + 2 linhas × 20 + p-3 12 = 64` — o `my-2`
+(8+8) fica como margem do bloco, que é o que a medida `RichText.codeHeight(2) = 80` contabiliza
+(8 + 12 + 40 + 12 + 8). Antes desta fatia o bloco era pintado como texto plano (uma linha, sem caixa),
+então a cerca do código era o último bloco de forma rica sem o seu desenho.
+
+BATERIA: **98 testes / 1 falha** — a única é o `EnoisTextE2ETest` (`0 px`, §1197).
+
+PENDÊNCIA NOMEADA (tipografia, intocada por esta fatia): o site renderiza o `<code>` na família MONO e em
+`text-sm` — a face mono NÃO está nos assets do app, então o texto do bloco sai na face do corpo por
+enquanto; e as faces do ITÁLICO (`em`/`<s>`) também não foram instanciadas (só a Regular 400 e a Medium 500).
