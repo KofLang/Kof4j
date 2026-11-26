@@ -30,10 +30,20 @@ final class CmdCheck {
         boolean deps = false;
         String pathArg = null;
         Target target = Target.JVM;
+        // #1196: a raiz do módulo declarável — o `check` de UM ARQUIVO em um
+        // pacote nomeado precisa dela (o `derivedPackageOf` deriva o pacote do
+        // caminho RELATIVO à raiz; sem raiz, o pacote sai "" e o `package ui`
+        // do arquivo bate errado → PKG004 falso). O `kof test` já tem a flag.
+        java.nio.file.Path moduleRoot = null;
 
         for (int i = 1; i < args.length; i++) {
             String arg = args[i];
-            if ("--help".equals(arg) || "-h".equals(arg) || "--version".equals(arg)) {
+            if ("--module-root".equals(arg) && i + 1 < args.length) {
+                moduleRoot = Path.of(args[++i]).toAbsolutePath().normalize();
+            } else if (arg.startsWith("--module-root=")) {
+                moduleRoot = Path.of(arg.substring("--module-root=".length()))
+                        .toAbsolutePath().normalize();
+            } else if ("--help".equals(arg) || "-h".equals(arg) || "--version".equals(arg)) {
                 out.println("usage: kof check <file.kf|dir> [--target <t>] [--deps] [--json]");
                 return 0;
             } else if ("--json".equals(arg)) {
@@ -138,8 +148,11 @@ final class CmdCheck {
                     ? driver.compileSources(files.stream()
                             .map(p -> p.toAbsolutePath().normalize()).distinct()
                             .collect(Collectors.toList()), tmp, target,
-                            src.toAbsolutePath().normalize())
-                    : driver.compile(files.get(0), tmp, target);
+                            moduleRoot != null ? moduleRoot : src.toAbsolutePath().normalize())
+                    : moduleRoot != null
+                            ? driver.compileSources(List.of(files.get(0).toAbsolutePath().normalize()),
+                                    tmp, target, moduleRoot)
+                            : driver.compile(files.get(0), tmp, target);
         } finally {
             KofCliSupport.cleanup(tmp);
         }
