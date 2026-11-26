@@ -1747,3 +1747,20 @@ shim carrega um peso/face por arquivo, não por trecho; e a dobra de cada bloco 
 card (`blockWidth`) — a caminhada pinta uma linha por bloco.
 
 BATERIA: **93 testes / 1 falha** (a que resta é o `EnoisTextE2ETest` `0 px`, §1197).
+
+## §96 (25/11) — o corpo dobra por PALAVRA na largura de texto do card, e o card mede com a mesma regra
+
+MEDIDO (app `BlogCuerpoRich.wrappedOf`/`wrappedHeight`/`paintWrapped` + `BlogPostCard.paintRich`
+usando `bodyTextWidth`, `EnoisBlogCuerpoWrapE2ETest` no nativo): com a régua tirada da FONTE real
+(`f.measure("um dois … dez")`), o texto naquela largura é UMA linha (`umalinha=1`), a um QUARTO dela
+dobra (`dobrado>1`), a altura sem dobra é 20 (uma linha) e a com dobra é `linhas_dobradas × 20` — a
+altura do card e a pintura usam o MESMO `wrappedHeight`, então um parágrafo longo aumenta o card e
+pinta em cada linha dobrada. A regra da dobra é a já medida para o `BlogCuerpo.linesOf` (`break-words`
+contra o `measure` do shim).
+
+BATERIA: **94 testes / 1 falha** (a que resta é o `EnoisTextE2ETest` `0 px`, §1197).
+
+PENDÊNCIA NOMEADA — agora as duas únicas no corpo: o PESO do negrito e a INCLINAÇÃO do itálico (o
+`Font` do shim tem uma face por arquivo, então um trecho não muda o peso), e os trechos inline só são
+desenhados quando o bloco cabe numa linha (um bloco dobrado pinta o texto puro linha a linha, sem a
+cor/marca por trecho).

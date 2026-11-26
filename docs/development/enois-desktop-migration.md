@@ -2052,3 +2052,20 @@ NAMED PENDING still open: the WEIGHT of `bold` and the SLANT of `italic` are not
 width (`blockWidth`) — the walk paints one line per block.
 
 BATTERY: **93 tests / 1 failure** (the remaining one is `EnoisTextE2ETest` `0 px`, §1197).
+
+## §96 (25/11) — the body wraps by WORD to the card's text width, and the card measures with the same rule
+
+MEASURED (app `BlogCuerpoRich.wrappedOf`/`wrappedHeight`/`paintWrapped` + `BlogPostCard.paintRich`
+now using `bodyTextWidth`, `EnoisBlogCuerpoWrapE2ETest` on native): with the ruler taken from the REAL
+font (`f.measure("um dois … dez")`), the text at that width is ONE line (`umalinha=1`), at a QUARTER of
+it it wraps (`dobrado>1`), the un-wrapped block height is 20 (one line) and the wrapped height is
+`linhas_dobradas × 20` — the card's height and its painting come from the same `wrappedHeight`, so a
+long paragraph grows the card and paints on every wrapped line. The wrap rule is the one already
+measured for `BlogCuerpo.linesOf` (`break-words` against the shim's `measure`).
+
+BATTERY: **94 tests / 1 failure** (the remaining one is `EnoisTextE2ETest` `0 px`, §1197).
+
+NAMED PENDING now the only two left in the body's paint: the bold WEIGHT and the italic SLANT (the
+shim's `Font` has one face per file, so a span cannot change weight), and the inline spans are drawn
+only when the block fits on one line (a wrapped block paints its plain text line by line, without the
+per-span colour/marks).
