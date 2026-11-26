@@ -1690,3 +1690,21 @@ pela linha do card.
 PRÓXIMO: o `heightFor(titleLines, bodyLines)` do card tira as linhas do corpo do
 `BlogCuerpo.wrappedLines`; trocar essa linha pela superfície de blocos do `BlogCuerpoRich`
 (`RichText.height` + a dobra por bloco) é a próxima fatia, com os números medidos como prova.
+
+## §93 (25/11) — o CARD do post mede e pinta pelos BLOCOS ricos (uma conta para os dois)
+
+MEDIDO (app `BlogPostCard.heightForRich` + `paintRich` + `paintShell`, `EnoisBlogPostCardRichE2ETest`
+no nativo): a altura do corpo vem da caminhada dos blocos (`RichText.height("# T\n\n- a\n- b") = 92`),
+o `bodyBlockOf` dá `p-8 32 + 92 + p-8 32 = 156`, o card é `borda 1×2 + cabeçalho 145 + 156 = 303` e o
+`paintRich` devolve os MESMOS 303 — o que o card mede é o que ele pinta. A casca do cabeçalho (fundo,
+fio, título, avatar, leitura) foi extraída no `paintShell`, compartilhado pela variante em texto e pela
+rica; o `BlogPostView` agora chama `heightForRich`/`paintRich`.
+
+BATERIA: **91 testes / 1 falha** (a que resta é o `EnoisTextE2ETest` `0 px`, §1197). Uma execução no
+meio da sessão mostrou 5 falhas + 13 erros — a causa era o DISCO CHEIO ("Não há espaço disponível no
+dispositivo" vindo do `ld`), não a mudança; depois de limpar o `/tmp` a mesma árvore roda 91/1F. Lição
+nomeada: o harness deixa um binário de ~270 MB por teste e o `/tmp` é um tmpfs de 7,8 GB.
+
+PRÓXIMO: a caminhada ainda pinta UMA linha por bloco (o `textOf` concatena as children do parágrafo);
+dobrar cada bloco na largura de texto do card (`blockWidth`) e os trechos inline (negrito/itálico/link)
+são as próximas fatias nomeadas.

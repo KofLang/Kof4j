@@ -1995,3 +1995,21 @@ exists as a widget ready to be called by the card row.
 NEXT: the card's `heightFor(titleLines, bodyLines)` takes the body's line count from
 `BlogCuerpo.wrappedLines`; switching that row to `BlogCuerpoRich`'s block surface
 (`RichText.height` + the per-block wrap) is the next slice, with the measured numbers as proof.
+
+## §93 (25/11) — the post CARD measures and paints from the RICH BLOCKS (one account for both)
+
+MEASURED (app `BlogPostCard.heightForRich` + `paintRich` + `paintShell`, `EnoisBlogPostCardRichE2ETest`
+on native): the body height comes from the block walk (`RichText.height("# T\n\n- a\n- b") = 92`),
+`bodyBlockOf` gives `p-8 32 + 92 + p-8 32 = 156`, the card is `border 1×2 + header 145 + 156 = 303`,
+and `paintRich` returns the SAME 303 — what the card measures is what it paints. The header shell
+(background, rule, title, avatar, reading time) was extracted into `paintShell`, shared by the text
+variant and the rich one; `BlogPostView` now calls `heightForRich`/`paintRich`.
+
+BATTERY: **91 tests / 1 failure** (the remaining one is `EnoisTextE2ETest` `0 px`, §1197). A run in
+the middle of the session showed 5 failures + 13 errors — the cause was the DISK FULL ("Não há
+espaço disponível no dispositivo" from `ld`), not the change; after clearing `/tmp` the same tree
+runs 91/1F. Named lesson: the harness leaves a ~270 MB binary per test and `/tmp` is a 7.8 GB tmpfs.
+
+NEXT: the block walk still paints ONE line per block (`textOf` concatenates the paragraph's
+children); wrapping each block to the card's text width (`blockWidth`) and the inline spans
+(bold/italic/link) are the next named slices.
