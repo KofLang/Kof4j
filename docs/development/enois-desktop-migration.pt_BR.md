@@ -1892,3 +1892,22 @@ BATERIA: **99 testes / 1 falha** (só o `EnoisTextE2ETest` `0 px`, §1197).
 
 O fix do parser é o caso que a regra do plano existe para pegar: medido no fonte do front, não inventado —
 e ele mudou a saída observável de um bloco já migrado.
+
+## §104 (26/11) — a LISTA do corpo é desenhada (marcadores, números, caixas de tarefa) e apareceu um LIMITE NOMEADO do parser
+
+MEDIDO (app `BlogCuerpoRich.paintList`/`paintSpansAt`/`isTask`, `EnoisBlogCuerpoListE2ETest` no nativo):
+`- um` / `- **dois**` é uma `list` com 2 itens e `ordered=false`; `1. um` / `2. dois` é `ordered=true`;
+`- [x] feito` / `- [ ] aberto` traz `checked=true` no primeiro item. O desenho segue o `rich-text.tsx:157`:
+lista com marcador põe um disco de 4 em `x` e o texto em `x+20` (`list-disc pl-5`), a ordenada põe `1.`/`2.`/…
+em `x`, e a lista de TAREFA tira o marcador e o recuo (`list-none pl-0`) para uma caixa de 12 em `x` com o
+texto em `x+18` (o `mr-1.5`); cada item é uma linha de 20 com o `space-y-1` (4) entre eles, e a altura
+devolvida é a do `RichText.listHeight(itens)` — 2 itens = `16 + 40 + 4 = 60`, 3 itens = `84`.
+
+**LIMITE NOMEADO (parser, não desta fatia):** o modelo não distingue um item de tarefa DESMARCADO de um item
+comum — `RichNode.checked` é `Bool`, então `[ ]` e uma bolinha chegam os dois `false`. Por isso o `isTask`
+trata a lista como de tarefa só quando ALGUM item está marcado; uma lista só de `[ ]` desenha marcadores em
+vez de caixas. Corrigir exige tri-estado (`Bool?`) no `checked` ou uma flag `task` na lista — mudança de
+parser que se espalha por `RichText.blocks`, os dois pintores e os testes, então fica registrada aqui em vez
+de entrar escondida.
+
+BATERIA: **100 testes / 1 falha** (só o `EnoisTextE2ETest` `0 px`, §1197).

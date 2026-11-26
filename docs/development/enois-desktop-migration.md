@@ -2195,3 +2195,23 @@ BATTERY: **99 tests / 1 failure** (only `EnoisTextE2ETest` `0 px`, §1197).
 
 The parser fix is the kind of thing the plan's rule exists for: measured in the front's source, not
 invented — and it changed observable output of an already-migrated block.
+
+## §104 (26/11) — the LIST of the post body is drawn (bullets, numbers, task boxes) and a NAMED LIMIT of the parser surfaced
+
+MEASURED (app `BlogCuerpoRich.paintList`/`paintSpansAt`/`isTask`, `EnoisBlogCuerpoListE2ETest` on native):
+`- um` / `- **dois**` is one `list` with 2 items and `ordered=false`; `1. um` / `2. dois` is `ordered=true`;
+`- [x] feito` / `- [ ] aberto` carries `checked=true` on the first item. The drawing follows
+`rich-text.tsx:157`: bullet lists put a 4px disc at `x` with the text at `x+20` (`list-disc pl-5`),
+ordered lists put `1.`/`2.`/… at `x`, and a TASK list drops the marker and the indent (`list-none pl-0`)
+for a 12px box at `x` with the text at `x+18` (the `mr-1.5`); each item is a 20px line with the `space-y-1`
+(4) between them, and the height returned is `RichText.listHeight(items)` — 2 items = `16 + 40 + 4 = 60`,
+3 items = `84`.
+
+**NAMED LIMIT (parser, not this slice):** the model cannot tell an UNCHECKED task item from a plain item —
+`RichNode.checked` is a `Bool`, so `[ ]` and a bullet both arrive `false`. `isTask` therefore treats a list
+as a task list only when SOME item is checked; a list of `[ ]` items that is entirely unchecked draws
+bullets, not boxes. Fixing it needs a tri-state (`Bool?`) on `checked` or a `task` flag on the list — a
+parser change that ripples through `RichText.blocks`, both painters and the tests, so it is recorded here
+instead of smuggled in.
+
+BATTERY: **100 tests / 1 failure** (only `EnoisTextE2ETest` `0 px`, §1197).
