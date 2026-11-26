@@ -2396,3 +2396,13 @@ PROOF (executed): `EnoisBlogCuerpoHeadingE2ETest` (native) — `tipo=heading,2,3
 NAMED BLOCKER FOUND ON THE WAY (Kof4j `known-bugs` §1241, OPEN): comparing TWO OBJECTS inside a print chain (`BlogCuerpoRich.fontFor(…) == BlogCuerpoRich.fontFor(…)`) made the LATER prints of the same `main` wrong (`headingLineOf(1) - 4` printed 20 while `headingLineOf(1)` printed 24 in the same run; `45` vs `44`) and the programme then died `rc=139`; removing the two comparison prints makes the whole `main` pass 2/2. The tests avoid the form; the next step is a compiler-only reproducer (`A.kf` + `Main.kf`, dump the IR). The §1244 (SDL/Fontconfig on a spawned child) flake did NOT hit this round's battery.
 
 NEXT (named): the §1241 compiler-only reproducer; then re-check `EnoisBlogCuerpoWrapInsideE2ETest`'s pen under a deterministic native runtime.
+
+## §116 (26/11) — THE HEADING FACE MOVED OUT OF `isMarked` (the block kind is not a span kind), and the §1241 / §1244 investigations got their measured updates
+
+CHANGE (app `35b0eed`): `BlogCuerpoRich.isMarked` listed `"heading"` — a BLOCK kind — inside a predicate used for SPANS (`kindOf(parent, kind)`), which is why the breadcrumb said a title is a mark and the mark face leaked into the wrapped path's spans. It now holds only the span kinds (`bold`, `mention`), and the heading's `font-medium` is decided by `headingFace(body, mark)` / `fontFor(…, "heading", …)` with the BLOCK's own kind. The heading test now proves the face by a MEASUREMENT instead of an object comparison (`faceTitulo=44` = Manrope-Medium for "corpo" at 16 px; the Regular measures 45), so it no longer exercises the §1241 form.
+
+PROOF: `EnoisBlogCuerpoHeadingE2ETest` (`tipo=heading,2,3`, `linha=24,20,20`, `base=32,28`, `faceTitulo=44`, `medidaCorpo=45`, `cinza=false,false,true`, frame) 3/3; the five body tests that touch the mark face re-run green (`MarkFace`, `Rich`, `Inline`, `NestedMark`, `Heading`). Battery **109 tests / 2 failures** — the §1197 `0 px` and the §1244 `rc=139` flake on `EnoisBlogCuerpoWrapInsideE2ETest` (intermittent: the same day gave a 109/1 battery).
+
+Kof4j (`known-bugs`, EN+PT): §1241 UPDATE 1 — the compiler-only reproducer was TRIED and NOT found (a same-file class + `==` + three prints passes 2/2; the app's failing shape needs a multi-file package whose class holds an `extern` handle); next step is copying the app's `main` as DATA into a Kof4j E2E with the exact module layout. §1244 UPDATE 1 — after the tip fixes (`0549bad95` SEM093 + the native `_start` args face) the flake is still intermittent at a lower rate, so it stays OPEN.
+
+NEXT (named): the §1241 two-file fixture; then re-check `EnoisBlogCuerpoWrapInsideE2ETest`'s pen.
