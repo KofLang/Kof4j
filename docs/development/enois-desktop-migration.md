@@ -2230,3 +2230,18 @@ With this the body paints EVERY block kind the parser emits — heading, paragra
 quote and divider — each with its measured box and the marks (bold weight via the Medium face, code box,
 link underline, strike, spoiler bar). What remains named: the mono face of `<code>`, the italic faces, the
 `[ ]`-vs-bullet tri-state in the parser, and the per-item wrapping of list items.
+
+## §106 (26/11) — the `[ ]`-vs-bullet gap is CLOSED: `RichNode` carries a `task` flag, so a task list whose items are ALL unchecked draws boxes
+
+MEASURED (app `RichText.blocks` + `BlogCuerpoRich.isTask`, `EnoisBlogCuerpoTaskListE2ETest` on native):
+before, `checked` was a plain `Bool`, so `- [ ] a` and `- a` both arrived `false` and a fully unchecked task
+list drew BULLETS. The DS decides the list style from `block.children?.some((item) => item.checked !== undefined)`
+(`rich-text.tsx`), i.e. it knows a `[ ]` item is a TASK item. The Kof record now carries a 10th field `task`
+(set by the parser on the item and propagated to the list), and `isTask(list)` reads it. Proved:
+`- [ ] a` / `- [ ] b` → `task=true` on the list and on the item (`checked=false`), `- a` / `- b` → `task=false`,
+and the mixed `[x]`/`[ ]` keeps `checked=true` on the first; the painter's `isTask` agrees; the drawn height is
+the measured `listHeight(2) = 60`. The change is additive on the record (a 10th field) and every constructor in
+`RichText.kf` was updated with it (19 sites + the two list sites + the nested link→text), which the compiler
+caught one by one (`SEM023: no constructor with 9 arguments`), so nothing was missed silently.
+
+BATTERY: **102 tests / 1 failure** (only `EnoisTextE2ETest` `0 px`, §1197).

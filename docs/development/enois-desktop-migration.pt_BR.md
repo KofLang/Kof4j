@@ -1926,3 +1926,18 @@ Com isso o corpo pinta TODOS os tipos de bloco que o parser emite — título, p
 codeBlock, citação e divisor — cada um com a caixa medida e as marcas (peso do negrito pela face Medium,
 caixa do código, fio do link, riscado, tarja do spoiler). O que resta nomeado: a face mono do `<code>`, as
 faces do itálico, o tri-estado `[ ]`-versus-bolinha no parser e a quebra por item da lista.
+
+## §106 (26/11) — o buraco do `[ ]`-versus-bolinha está FECHADO: o `RichNode` carrega a flag `task`, então uma lista de tarefa cujos itens estão TODOS desmarcados desenha caixas
+
+MEDIDO (app `RichText.blocks` + `BlogCuerpoRich.isTask`, `EnoisBlogCuerpoTaskListE2ETest` no nativo): antes,
+`checked` era um `Bool` puro, então `- [ ] a` e `- a` chegavam os dois `false` e uma lista de tarefa toda
+desmarcada desenhava BOLINHAS. O DS decide o estilo da lista por `block.children?.some((item) => item.checked
+!== undefined)` (`rich-text.tsx`), ou seja, ele sabe que um item `[ ]` é de TAREFA. O record do Kof agora carrega
+um 10º campo `task` (posto pelo parser no item e propagado para a lista), e o `isTask(lista)` o consulta.
+Provado: `- [ ] a` / `- [ ] b` → `task=true` na lista e no item (`checked=false`), `- a` / `- b` → `task=false`, e
+a mista `[x]`/`[ ]` mantém `checked=true` no primeiro; o `isTask` do pintor concorda; a altura desenhada é a
+medida `listHeight(2) = 60`. A mudança é aditiva no record (um 10º campo) e todo construtor do `RichText.kf` foi
+atualizado com ela (19 sítios + os dois da lista + o link→texto aninhado), o que o compilador cobrou um a um
+(`SEM023: no constructor with 9 arguments`), então nada passou em silêncio.
+
+BATERIA: **102 testes / 1 falha** (só o `EnoisTextE2ETest` `0 px`, §1197).
