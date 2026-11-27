@@ -26,14 +26,14 @@ class NativeLiteralDropE2ETest {
                 .stdout().strip().replace("\n", " ");
     }
 
-    /** O corpo do esqueleto: 90 + 94 depois de imprimir o 90 (196 esperado). */
+    /** O corpo do esqueleto: 90 + 94 depois de imprimir o 90 (184, o valor certo). */
     @Test
     void theBodySumOfTheSkeletonIsReadWhole(@TempDir Path dir) throws Exception {
         String out = interpret(dir, """
                     println(90)
                     println(90 + 94)
                 """);
-        assertEquals("90 196", out, "a soma depois do primeiro termo impresso (medido: 90 184)");
+        assertEquals("90 184", out, "a soma depois do primeiro termo impresso (90 + 94 = 184)");
     }
 
     /** O padrão geral: a soma/multiplicação repete o último valor da linha anterior. */
