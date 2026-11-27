@@ -2196,3 +2196,11 @@ Medido nesta rodada: (a) `-Xint`, `-XX:TieredStopAtLevel=1` e a verificação de
 PRÓXIMO (nomeado, no `known-bugs` §1246): os números do `Q5.ref()` sem tocar antes na saída do Kof (já deu `1 1` sem tocar), o mesmo sob o `jdk21` (`/home/mel/.local/jdk/jdk21`, já verificado como real), `SUNWprivate`/`-Xlog` desligados, e o `ArrayList` da JVM sob depurador. Se um segundo JDK responder `1 2`, o RED do §1246 estava medindo o host.
 
 APP: sem mudança (113 testes / 2 falhas: §1197 e o flake §1244).
+
+## §128 (26/11) — DECISIVO: um programa de `javac` PURO também responde 1/1 neste host (`int x = one("um"); int y = one("um"); int z = one("dois")` → `x=1 y=1 z=1`), então os registros do §1246 estão medindo a JVM DESTE HOST e não o Kof — e um defeito real e reproduzível do Kof, achado no caminho, fica registrado
+
+MEDIDO, num shell novo e num diretório novo: `N.java` = `static int one(String s) { ArrayList<String> p = new ArrayList(); p.add(s); return p.size(); }` chamado três vezes → `x=1 y=1 z=1`. É o `javac`/`java` 25 de fábrica nesta máquina — a mesma resposta que o código do Kof dá. Sob o `jdk21` o `R.ref()` análogo também responde 1/1 enquanto funções com `int[]`/`StringBuilder` no mesmo programa respondem certo, então a anomalia é da(s) JVM(s) que esta sessão lança, não do compilador.
+
+O DEFEITO REAL DO KOF ACHADO NO CAMINHO (reproduzível, sem ambiente no meio): com um `var q = listOf<String>(); q.add("a"); q.add("b")` no `main` ANTES de duas chamadas `G.go(…)`, o run do Kof responde `q=2 a=1 b=1` em vez de `q=2 a=1 b=2` — a lista construída depois dentro de uma função chamada reporta o tamanho da lista anterior, enquanto a MESMA função sem o `q` no `main` responde `a=1 b=2`. O tempo de vida do `q` no frame do chamador muda o `size()` da lista do chamado. PRÓXIMO (nomeado): reduzir a um teste do Kof4j (um frame de chamador com uma lista + um chamado que constrói a própria lista e devolve `size()`), e então olhar o `kof_list_new`/`kof_list_add`/`kof_list_size` E o crescimento do frame do CHAMADOR (o tratamento do resultado de `KofCall` FUNCTION) no emissor.
+
+ESTADO: o RED `NativeListSizeTwoCallsE2ETest` continua NÃO commitado (a forma de duas chamadas não é confiável neste host); app sem mudança (113 testes / 2 falhas: §1197 e o flake §1244).

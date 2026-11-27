@@ -2498,3 +2498,11 @@ Measured this round: (a) `-Xint`, `-XX:TieredStopAtLevel=1` and disabled bytecod
 NEXT (named, in `known-bugs` §1246): the numbers `Q5.ref()` without touching the Kof output first (it gave `1 1` even then), the same under `jdk21` (`/home/mel/.local/jdk/jdk21`, already verified real), `SUNWprivate`/`-Xlog` off, and the JVM's `ArrayList` under a debugger. If a second JDK answers `1 2`, the §1246 RED was measuring the host.
 
 APP: unchanged (113 tests / 2 failures: §1197 and the §1244 flake).
+
+## §128 (26/11) — DECISIVE: a PLAIN `javac` programme ALSO answers 1/1 on this host (`int x = one("um"); int y = one("um"); int z = one("dois")` → `x=1 y=1 z=1`), so the §1246 records are measuring THIS HOST's JVM and not Kof — and a real, reproducible Kof defect found on the way is recorded
+
+MEASURED, in a fresh shell and a fresh directory: `N.java` = `static int one(String s) { ArrayList<String> p = new ArrayList(); p.add(s); return p.size(); }` called three times → `x=1 y=1 z=1`. That is stock `javac`/`java` 25 on this machine — the same answer the Kof code gives. Under `jdk21` the analogous `R.ref()` also answers 1/1 while `int[]`/`StringBuilder` functions in the same programme answer correctly, so the anomaly belongs to the JVM(s) this session launches, not to the compiler.
+
+THE REAL KOFT DEFECT FOUND ON THE WAY (reproducible, no environment involvement): with a `var q = listOf<String>(); q.add("a"); q.add("b")` in `main` BEFORE two `G.go(…)` calls, the Kof run answers `q=2 a=1 b=1` instead of `q=2 a=1 b=2` — the list built later in a called function reports the earlier list's size, while the SAME function without the `q` in `main` answers `a=1 b=2`. The `q`'s lifetime in the caller's frame changes the callee's list `size()`. NEXT (named): reduce this to a Kof4j test (a caller frame with one list + a callee building its own list and returning `size()`), then look at `kof_list_new`/`kof_list_add`/`kof_list_size` AND at the CALLER's frame growth (`KofCall` FUNCTION result handling) in the emitter.
+
+STATE: the RED `NativeListSizeTwoCallsE2ETest` stays UNCOMMITTED (its two-call shape cannot be trusted on this host); app unchanged (113 tests / 2 failures: §1197 and the §1244 flake).
