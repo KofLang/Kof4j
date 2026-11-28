@@ -33,8 +33,13 @@ final class NullArgumentGuard {
         if ("equals".equals(callee)) return;
         for (int i = 0; i < args.size() && i < formals.size(); i++) {
             Type formal = formals.get(i);
-            boolean nonNullable = formal instanceof Type.PrimitiveType
-                    || formal instanceof Type.ClassType;
+            // #1181-paridade: um formal NULLABLE (Av1TxType?) aceita o null
+            // literal — o `?` É a declaração do ausente (o mesmo contrato da
+            // coleção do #1202: o T? é a declaração do tipo, não a fabricação
+            // de null). O guard só julga o formal NÃO-nullável declarado.
+            boolean nonNullable = !(formal instanceof Type.NullableType)
+                    && (formal instanceof Type.PrimitiveType
+                    || formal instanceof Type.ClassType);
             if (!nonNullable || !CompilerComparisons.isNullLiteral(args.get(i))) continue;
             diagnostics.error(pos != null ? pos.file() : "",
                     pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
