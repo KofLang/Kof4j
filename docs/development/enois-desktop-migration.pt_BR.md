@@ -2270,3 +2270,13 @@ MEDIDO nesta rodada: (a) um runner Java sobre `CompilerPipeline.parseAndMerge` +
 PRÓXIMO (nomeado): despejar o IR do pintor REAL no mesmo processo que compila o binário do app (um gancho temporário `kof run --dump-ir` ou um teste que compila o módulo do app e imprime `paintWrappedMarkedAt`) e o mesmo do `/tmp/pw3` num comando só, e comparar — até lá o `altura=0` fica ABERTO com a forma de embrulho e nenhuma mudança de compilador é feita sobre evidência contraditória.
 
 APP: sem mudança (113 / 2: §1197 e o `altura=0` do pintor).
+
+## §136 (26/11) — A CORREÇÃO DAS SOBRECARGAS ESTÁTICAS DE MESMA ARIDADE ESTÁ NA ÁRVORE (§1207): RED-first confirmado com o jar OBSOLETO e GREEN com o jar da árvore; o teste novo `NativeStaticOverloadCallSiteE2ETest` entra como prova
+
+O QUE FOI MEDIDO: com o `lib/kof.jar` construído antes do compilador que conhece o §1207 (`resolveCalleeName` / `NativeSymbolMangling.fnKey`), duas sobrecargas estáticas de mesma aridade (`class Duas { static Int soma(Int,Int); static Int soma(Int) }`) emitiam as DEFINIÇÕES como `Duas_soma_I_I` / `Duas_soma_I` e os SÍTIOS DE CHAMADA como `Duas_soma` pelado, e o `ld` falhava com `referência não definida para "Duas_soma"`. Reconstruindo o `lib/kof.jar` da árvore atual (`mvn -pl kof-compiler install` + `kof-cli package`), o mesmo programa imprime `a=5 b=5 c=3` (três sobrecargas mistas) e `p=4,6 n=11` (sobrecarga record/Int), e o novo `NativeStaticOverloadCallSiteE2ETest` (2 testes: duas de mesma aridade, três mistas) fica GREEN com o jar da árvore. A primeira execução desse teste passou porque o `install` já tinha atualizado o `~/.m2` — o RED foi capturado com o `lib/kof.jar` velho, pelo CLI, antes disso.
+
+POR QUE ISSO IMPORTA: os `libs/*.kf` do app usam sobrecargas estáticas de mesma aridade (`RichText.headingHeight`, `BlogCuerpoRich.*`), então toda medição feita com o `lib/kof.jar` obsoleto podia cair nesse erro de link OU linkar contra a definição ERRADA — o que é também a explicação provável da leitura contraditória do IR do §135 (jar obsoleto numa das duas sondas).
+
+REGRA PERMANENTE desta lane (registrada): SEMPRE reconstruir o `lib/kof.jar` da árvore atual antes de medir o app (`mvn -o -q -pl kof-compiler install -DskipTests -Dmaven.test.skip=true`, `rm -rf kof-cli/target`, `mvn -o -q -pl kof-cli package -DskipTests`, copiar o jar) — um jar obsoleto já custou a esta lane várias leituras erradas (§121/§124/§126/§135).
+
+APP: sem mudança (113 / 2: §1197 e o `altura=0` do pintor), agora medido com o jar correto.

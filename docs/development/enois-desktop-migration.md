@@ -2572,3 +2572,13 @@ MEASURED this round: (a) a Java runner on `CompilerPipeline.parseAndMerge` + `an
 NEXT (named): dump the IR of the REAL painter in the same process that compiles the app binary (a temporary `kof run --dump-ir` hook or a test that compiles the app module and prints `paintWrappedMarkedAt`), and the same for `/tmp/pw3` in one command, and diff — until then the `altura=0` stays OPEN with the wrapper form and no compiler change is made on contradictory evidence.
 
 APP: unchanged (113 / 2: §1197 and the painter's `altura=0`).
+
+## §136 (26/11) — THE STATIC SAME-ARITY OVERLOAD FIX IS IN THE TREE (§1207): RED-first confirmed with the STALE jar and GREEN with the tree's jar; the new test `NativeStaticOverloadCallSiteE2ETest` is committed as the proof
+
+WHAT WAS MEASURED: with `lib/kof.jar` built before the §1207-aware compiler (`resolveCalleeName` / `NativeSymbolMangling.fnKey`), two same-arity static overloads (`class Duas { static Int soma(Int,Int); static Int soma(Int) }`) emitted the DEFINITIONS as `Duas_soma_I_I` / `Duas_soma_I` and the CALL SITES as bare `Duas_soma`, so `ld` failed with `referência não definida para "Duas_soma"`. Rebuilding `lib/kof.jar` from the current tree (`mvn -pl kof-compiler install` + `kof-cli package`) makes the same program print `a=5 b=5 c=3` (three mixed overloads) and `p=4,6 n=11` (record/Int overload), and the new `NativeStaticOverloadCallSiteE2ETest` (2 tests: two same-arity, three mixed) is GREEN with the tree jar. The first run of that test passed because the install step had already refreshed `~/.m2` — the RED was captured with the old `lib/kof.jar` through the CLI before that.
+
+WHY THIS MATTERED: the app's `libs/*.kf` uses same-arity static overloads (`RichText.headingHeight`, `BlogCuerpoRich.*`), so every measurement made with a stale `lib/kof.jar` could hit this link failure or run linked against the WRONG definition — which is also the likely explanation for the contradictory IR reading of §135 (a stale compiler jar in one of the two probes).
+
+STANDING RULE for this lane (recorded): ALWAYS rebuild `lib/kof.jar` from the current tree before measuring the app (`mvn -o -q -pl kof-compiler install -DskipTests -Dmaven.test.skip=true`, `rm -rf kof-cli/target`, `mvn -o -q -pl kof-cli package -DskipTests`, copy the jar) — a stale jar already cost this lane several wrong readings (§121/§124/§126/§135).
+
+APP: unchanged (113 / 2: §1197 and the painter's `altura=0`), now measured with the correct jar.
