@@ -2556,3 +2556,11 @@ RULED OUT this and the previous rounds (all measured, both targets, native and J
 LEADS STILL OPEN (named): (1) disable the IR optimizer for the real painter (`CompilerDriver.setOptimizationEnabled(false)` via a small driver, or a debug switch) — if the `0` disappears, the suspect is the label/return handling in the `Optimizer` passes (`reachability` and `removeJumpToNext`, the two that touch labels and returns); (2) copy `paintWrappedMarkedAt` VERBATIM into a test project (real `RichText` + the app's types, drawing calls replaced by no-ops) and cut from there — the stub approximated the shape but not the depth of the real `if`/`else if` chain.
 
 APP: unchanged (113 / 2: §1197 and the painter's `altura=0`). The wrapper form stays.
+
+## §134 (26/11) — THE IR DIFF FOR THE PAINTER IS BLOCKED BY THE INTERPRETER (FFI001 on SDL), and the no-SDL copy needs a `Font` that is not the UI widget; no new measurement landed
+
+Tried: `CompilerPipeline.prepareForInterpretation` on the app module throws `KofInterpretException: FFI001: extern 'SDL_Init'` (and the same for `kt_open`) before any IR is produced, so the "dump the painter's IR with/without the optimizer" lead cannot be run as-is — it needs a pipeline call that lowers WITHOUT the Script target's FFI gate. Also tried: stripping `import enois.Text`/`Sdl3Backend` from a copy of `RichText` and stubbing `Font` — the name `Font` collides with the UI WIDGET (`'Font' espera 2 ou 3 argumentos`, `training/idioms/ui`), so a Kof-level stub cannot stand in for the Énois `Font`; the painter copy needs the real `Text.kf` (with the FreeType shim) or a renamed stub plus renamed call sites.
+
+STATE: unchanged from §133 — the `altura=0` has a precise symptom (the painter's last `return` compiles to `movq $0, %rax` and the `height` call is absent from the body) and no minimal reproducer yet. Leads (updated): (1) a Java-side runner that calls the lowering phase directly (`CompilerPipeline.analyzeAndLower`, which does not interpret) — the interpreter is the only reason the IR dump failed; (2) a painter copy with the real `Text.kf` (it already has the shim path) so no `Font` stub is needed.
+
+APP: unchanged (113 / 2: §1197 and the `altura=0`).

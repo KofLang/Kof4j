@@ -2254,3 +2254,11 @@ DESCARTADO nesta e nas rodadas anteriores (tudo medido, nos dois alvos, nativo e
 PISTAS AINDA ABERTAS (nomeadas): (1) desligar o otimizador de IR para o pintor real (`CompilerDriver.setOptimizationEnabled(false)` por um driver pequeno, ou um interruptor de debug) — se o `0` desaparecer, o suspeito é o tratamento de rótulos/retornos nas passes do `Optimizer` (`reachability` e `removeJumpToNext`, as duas que mexem em rótulos e retornos); (2) copiar o `paintWrappedMarkedAt` VERBATIM para um projeto de teste (o `RichText` real + os tipos do app, chamadas de desenho viradas no-op) e cortar a partir daí — o stub aproximou a forma, mas não a profundidade da cadeia real de `if`/`else if`.
 
 APP: sem mudança (113 / 2: §1197 e o `altura=0` do pintor). O embrulho fica.
+
+## §134 (26/11) — O DIFF DE IR DO PINTOR ESTÁ BLOQUEADO PELO INTERPRETADOR (FFI001 no SDL), e a cópia sem SDL precisa de um `Font` que não é o widget de UI; nenhuma medição nova saiu
+
+Tentado: `CompilerPipeline.prepareForInterpretation` no módulo do app lança `KofInterpretException: FFI001: extern 'SDL_Init'` (e o mesmo para `kt_open`) antes de produzir IR, então a pista "despejar o IR do pintor com/sem o otimizador" não roda como está — precisa de uma chamada do pipeline que faça o lowering SEM o portão de FFI do alvo Script. Também tentado: tirar `import enois.Text`/`Sdl3Backend` de uma cópia do `RichText` e falsificar o `Font` — o nome `Font` colide com o WIDGET de UI (`'Font' espera 2 ou 3 argumentos`, `training/idioms/ui`), então um stub em Kof não substitui o `Font` do Énois; a cópia do pintor precisa do `Text.kf` real (com o shim do FreeType) ou de um stub renomeado com os sítios renomeados.
+
+ESTADO: igual ao §133 — o `altura=0` tem sintoma preciso (o `return` final do pintor compila para `movq $0, %rax` e a chamada do `height` não está no corpo) e ainda sem reprodutor mínimo. Pistas (atualizadas): (1) um runner Java que chame a fase de lowering diretamente (`CompilerPipeline.analyzeAndLower`, que não interpreta) — o interpretador é o único motivo do dump de IR ter falhado; (2) uma cópia do pintor com o `Text.kf` real (que já tem o caminho do shim), sem precisar de stub de `Font`.
+
+APP: sem mudança (113 / 2: §1197 e o `altura=0`).
