@@ -123,6 +123,22 @@ public final class RuntimePlatIoAt {
                 syscall
                 ret
 
+            .globl kof_plat_mmap
+            .type kof_plat_mmap, @function
+            kof_plat_mmap:
+                # mmap(addr=%rdi, len=%rsi, prot=%rdx, flags=%r10, fd=%r8, off=%r9)
+                movq $9, %rax
+                syscall
+                ret
+
+            .globl kof_plat_munmap
+            .type kof_plat_munmap, @function
+            kof_plat_munmap:
+                # munmap(addr=%rdi, len=%rsi)
+                movq $11, %rax
+                syscall
+                ret
+
             """);
     }
 }

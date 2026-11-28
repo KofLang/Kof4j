@@ -782,6 +782,23 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 21 LANDED 24/11 — the HOST body of the allocator's seam finally
+  speaks the seam too (known-bugs §1254).** `kof_plat_heap_grow` lives in
+  `RuntimeMemory`, and its host body still did the `mmap` (9) and the
+  `munmap` (11) as raw syscalls — while its macOS twin (the M-3 slice)
+  already spoke the libSystem. The 3 sites now call the seam's
+  `kof_plat_mmap`/`kof_plat_munmap`, so the host and the Darwin bodies are
+  the SAME contract. **THE THREE MEASURED DIFFERENCES** (the ones the M-3
+  slice already measured): the 4th flag goes in `%rcx` on the Darwin
+  (SysV) instead of `%r10`; the flags are OTHER — `MAP_PRIVATE|MAP_ANON|
+  MAP_NORESERVE` is `0x1042` on the Darwin (the site sends the Linux
+  `0x4022` and the body translates it); and the failure is `MAP_FAILED`
+  (`(void*)-1` exact). **PROOF (executed):** the memory battery 55 tests 0F
+  (`MemorySafetyE2ETest` 48, `MemorySafetyMatrixE2ETest` 5,
+  `MemoryClearE2ETest` 2); the whole runtime still ASSEMBLES and LINKS in
+  the real Mach-O toolchain; the seam ratchet **FALLS 23 → 20** (the RED
+  measured: with the old body the gate prints `fora-da-costura=23`).
+
   **M-6 SLICE 20 LANDED 24/11 — the READ faces joined the seam (known-bugs
   §1252).** `kof_io_read_bytes` and `kof_io_read_range` used raw syscalls
   (`openat` 257, `fstat` 5, `pread64` 17). The 4 sites now call the seam,

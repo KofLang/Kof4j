@@ -364,8 +364,7 @@ public final class RuntimeMemory {
                 movq $0x4022, %r10           # MAP_PRIVATE|ANONYMOUS|NORESERVE
                 movq $-1, %r8
                 movq $0, %r9
-                movq $9, %rax                # mmap
-                syscall
+                call kof_plat_mmap                # mmap
                 cmpq $-4095, %rax            # erro mmap = [-4095,-1]
                 jae .Lgrow_smaller
                 movq %rax, %r13              # bitmap ptr (temporário)
@@ -376,8 +375,7 @@ public final class RuntimeMemory {
                 movq $0x4022, %r10
                 movq $-1, %r8
                 movq $0, %r9
-                movq $9, %rax
-                syscall
+                call kof_plat_mmap
                 cmpq $-4095, %rax
                 jb .Lgrow_arena_ok
                 # arena falhou: devolve o bitmap (< cap) antes de tentar menor,
@@ -385,8 +383,7 @@ public final class RuntimeMemory {
                 movq %r13, %rdi
                 movq %r12, %rsi
                 shrq $7, %rsi
-                movq $11, %rax               # munmap
-                syscall
+                call kof_plat_munmap               # munmap
                 jmp .Lgrow_smaller
             .Lgrow_arena_ok:
                 movq %rax, kof_arena_base(%rip)

@@ -281,6 +281,45 @@ public final class RuntimePlatMacosIoAt {
                 popq %rbx
                 ret
 
+            .globl kof_plat_mmap
+            .type kof_plat_mmap, @function
+            kof_plat_mmap:
+                # mmap(addr, len, prot, flags=%r10 do syscall, fd=%r8, off=%r9)
+                # — TRES medidas do Darwin: a 4a flag vai em %rcx (SysV), as
+                # flags PRIVATE|ANON|NORESERVE sao 0x1042 (o Linux manda 0x4022),
+                # e o erro e' MAP_FAILED (-1 exato).
+                pushq %r15
+                movq %rsp, %r15
+                andq $-16, %rsp
+                cmpq $0x4022, %r10       # o valor do Linux -> o do Darwin
+                jne .Lpmp_flags_ok
+                movq $0x1042, %r10
+            .Lpmp_flags_ok:
+                movq %r10, %rcx
+                call mmap
+                subq %rsp, %r15
+                addq %r15, %rsp
+                popq %r15
+                ret
+
+            .globl kof_plat_munmap
+            .type kof_plat_munmap, @function
+            kof_plat_munmap:
+                pushq %r15
+                movq %rsp, %r15
+                andq $-16, %rsp
+                call munmap
+                testl %eax, %eax
+                jns .Lpmu_ret
+                call __error
+                movl (%rax), %eax
+                negl %eax
+            .Lpmu_ret:
+                subq %rsp, %r15
+                addq %r15, %rsp
+                popq %r15
+                ret
+
             """);
     }
 }

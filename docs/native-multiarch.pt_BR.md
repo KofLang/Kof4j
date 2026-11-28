@@ -784,6 +784,23 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 21 POUSADA 24/11 — o corpo HOST da costura do allocator
+  finalmente fala a costura também (known-bugs §1254).** O
+  `kof_plat_heap_grow` mora no `RuntimeMemory`, e o corpo host ainda fazia
+  o `mmap` (9) e o `munmap` (11) como syscalls crus — enquanto o seu gêmeo
+  macOS (a fatia M-3) já falava a libSystem. Os 3 sítios agora chamam o
+  `kof_plat_mmap`/`kof_plat_munmap` da costura, então os corpos host e
+  Darwin são o MESMO contrato. **AS TRÊS DIFERENÇAS MEDIDAS** (as que a
+  fatia M-3 já mediu): a 4ª flag vai em `%rcx` no Darwin (SysV) em vez de
+  `%r10`; as flags são OUTRAS — `MAP_PRIVATE|MAP_ANON|MAP_NORESERVE` é
+  `0x1042` no Darwin (o sítio manda o `0x4022` do Linux e o corpo traduz); e
+  a falha é `MAP_FAILED` (`(void*)-1` exato). **PROVA (executada):** a
+  bateria de memória 55 testes 0F (`MemorySafetyE2ETest` 48,
+  `MemorySafetyMatrixE2ETest` 5, `MemoryClearE2ETest` 2); o runtime inteiro
+  ainda MONTA e LINCA no toolchain real do Mach-O; o ratchet da costura
+  **CAI 23 → 20** (o RED medido: com o corpo antigo o gate imprime
+  `fora-da-costura=23`).
+
   **M-6 FATIA 20 POUSADA 24/11 — as faces de LEITURA entraram na costura
   (known-bugs §1252).** O `kof_io_read_bytes` e o `kof_io_read_range` usavam
   syscalls crus (`openat` 257, `fstat` 5, `pread64` 17). Os 4 sítios agora
