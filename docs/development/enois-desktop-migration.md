@@ -2642,3 +2642,16 @@ ISSUE: GITHUB #1208 (docs path only — the issue itself is only on GitHub; the 
 NEXT (named): `ExpressionBareCallLowerer`'s `cs = getClass(mc.methodName())` / `ExpressionMethodCallLowerer`'s `rid` branch must NOT take `height` from a class the file does not import and that does not shadow `RichText` (the file imports `img.RichText` itself); restore `/tmp/s141/` (the `declaredSources` dedup of `CompilerImports` + the RED test), make it green without `def`, then the package-local `import img.X` inside `img/` must stop being PKG007 when `X` is a sibling file (the #1207 face's remaining half).
 
 APP: unchanged (113 / 2).
+
+## §142 (28/11) — §141 CORRECTED BY MEASUREMENT: item 2 (the duplicated sibling) reproduces in its minimal form `/tmp/g12/src` (`symbol 'img_RichText_vtable' is already defined` with the sibling imported, `h=6` without); item 3 (PKG007) is NOT a wrong key — the frozen `ProjectModuleResolutionTest.selfImportIsDiagnosed` shows the directory read crossing ABOVE the root (`tmp/a/Main.kf` importing `a.A` resolves `tmp/a/a/A.kf`); item 1 does not pin on the argument-less `MemberCallTyper` (the call has an argument)
+
+MEASURED (tree jar rebuilt from `c2413e10c`):
+* item 2: `kof build /tmp/g12/src/Main.kf --target native` with `src/img/{RichText,Raster}.kf` → `Generated`, then `as` fails `symbol 'img_RichText_vtable' is already defined` (also `img_Raster_vtable`, `img_RichText_init_0`); without the `Raster` import the same build links and answers `h=6`. IR read before optimization: `img/RichText` and `img/Raster` twice. The dedupe (`declaredSources`, the sibling walk marking its files and the package walk skipping them) printed `classes=4` in the probe; it is preserved at `/var/tmp/eno/CompilerImports.java` + `/var/tmp/eno/tests/ImportTransitiveMemberE2ETest.java`.
+* item 3: the PKG007 shape it protects is `tmp/a/Main.kf` importing `a.A`, which resolves `tmp/a/a/A.kf` — ONE LEVEL ABOVE the root — so the file path cannot be derived from the key; a file→file sibling (`src/img/RichText.kf` importing `img.Node`) is the same edge and must resolve. An attempt keyed on the readers' file paths regressed 7 `PackagesE2ETest` faces (`com.dev.NodeUI`, `com.dev.Panel`, `b.Y`, `vendas.models.Cliente` are legit directory reads) — withdrawn.
+* item 1: `RichText.height(3)` has an ARGUMENT, so it does not go through the argument-less `MemberCallTyper` selection; on `c2413e10c` no minimal erasure shape reproduced the `call img_Other_height` end to end (it reproduced on `/tmp/g9`, built from the tree before the `§1253`/decompiler commits landed in the tree jar).
+
+STATE: the tree is clean for this lane (only peers' `RuntimeTime.java` / `libs/term/`); the issue comment with all three shapes is on GITHUB #1208.
+
+NEXT (named, split): **#1208a** the sibling/package-walk dedupe (`CompilerImports` + `ImportTransitiveMemberE2ETest`) — one file, P2; **#1208b** PKG007 by the directory read crossing above the root (design; the frozen face stays green); **#1208c** the receiver resolution with an argument — measure the erasure shape first.
+
+APP: unchanged (113 / 2).

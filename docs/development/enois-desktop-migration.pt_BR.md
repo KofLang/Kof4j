@@ -2340,3 +2340,16 @@ ISSUE: GITHUB #1208 (só o link — o texto do issue está no GitHub; os três d
 PRÓXIMO (nomeado): o `cs = getClass(mc.methodName())` do `ExpressionBareCallLowerer` / o ramo `rid` do `ExpressionMethodCallLowerer` NÃO pode pegar `height` de uma classe que o arquivo não importa e que não sombreia `RichText` (o arquivo importa o próprio `img.RichText`); restaurar `/tmp/s141/` (o dedup `declaredSources` do `CompilerImports` + o teste RED), deixá-lo verde sem `def`, e depois o `import img.X` dentro de `img/` deve deixar de ser PKG007 quando `X` é um irmão (a metade restante da face do #1207).
 
 APP: sem mudança (113 / 2).
+
+## §142 (28/11) — §141 CORRIGIDO PELA MEDIÇÃO: o item 2 (o irmão duplicado) reproduz na forma mínima `/tmp/g12/src` (`symbol 'img_RichText_vtable' is already defined` com o irmão importado, `h=6` sem); o item 3 (PKG007) NÃO é chave errada — o teste congelado `ProjectModuleResolutionTest.selfImportIsDiagnosed` mostra a leitura de diretório atravessando ACIMA da raiz (`tmp/a/Main.kf` importando `a.A` resolve `tmp/a/a/A.kf`); o item 1 não fixa no `MemberCallTyper` sem argumento (a chamada tem argumento)
+
+MEDIDO (jar reconstruído da árvore em `c2413e10c`):
+* item 2: `kof build /tmp/g12/src/Main.kf --target native` com `src/img/{RichText,Raster}.kf` → `Generated`, e o `as` falha `symbol 'img_RichText_vtable' is already defined` (também `img_Raster_vtable`, `img_RichText_init_0`); sem o import de `Raster` o mesmo build linka e responde `h=6`. IR lida antes da otimização: `img/RichText` e `img/Raster` duas vezes. O dedup (`declaredSources`, a varredura de irmãos marcando os arquivos e a do pacote pulando) imprimiu `classes=4` no probe; está preservado em `/var/tmp/eno/CompilerImports.java` + `/var/tmp/eno/tests/ImportTransitiveMemberE2ETest.java`.
+* item 3: a forma do PKG007 que ele protege é `tmp/a/Main.kf` importando `a.A`, que resolve `tmp/a/a/A.kf` — UM NÍVEL ACIMA da raiz — então o caminho do arquivo não deriva da chave; um irmão file→file (`src/img/RichText.kf` importando `img.Node`) é a mesma aresta e deve resolver. A tentativa por caminhos dos leitores regrediu 7 faces do `PackagesE2ETest` (`com.dev.NodeUI`, `com.dev.Panel`, `b.Y`, `vendas.models.Cliente` são leituras de diretório legítimas) — retirada.
+* item 1: `RichText.height(3)` tem ARGUMENTO, então não passa pela seleção sem argumento do `MemberCallTyper`; em `c2413e10c` nenhuma forma mínima de erasure reproduziu o `call img_Other_height` de ponta a ponta (reproduziu em `/tmp/g9`, montado da árvore antes dos commits do `§1253`/decompiler entrarem no jar da árvore).
+
+ESTADO: a árvore está limpa para esta lane (só `RuntimeTime.java` / `libs/term/` de outras lanes); o comentário com as três formas está no GITHUB #1208.
+
+PRÓXIMO (nomeado, dividido): **#1208a** o dedup irmão/pacote (`CompilerImports` + `ImportTransitiveMemberE2ETest`) — um arquivo, P2; **#1208b** o PKG007 pela leitura de diretório acima da raiz (design; a face congelada fica verde); **#1208c** a resolução do receptor com argumento — medir a forma do erasure antes.
+
+APP: sem mudança (113 / 2).
