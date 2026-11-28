@@ -2582,3 +2582,11 @@ WHY THIS MATTERED: the app's `libs/*.kf` uses same-arity static overloads (`Rich
 STANDING RULE for this lane (recorded): ALWAYS rebuild `lib/kof.jar` from the current tree before measuring the app (`mvn -o -q -pl kof-compiler install -DskipTests -Dmaven.test.skip=true`, `rm -rf kof-cli/target`, `mvn -o -q -pl kof-cli package -DskipTests`, copy the jar) — a stale jar already cost this lane several wrong readings (§121/§124/§126/§135).
 
 APP: unchanged (113 / 2: §1197 and the painter's `altura=0`), now measured with the correct jar.
+
+## §137 (26/11) — RE-MEASURED WITH THE CORRECT JAR: the `altura=0` is REAL (the painter AND the key `RichText.height(listOf(blk))` both print 0 in the same run), so §135's contradiction was a stale-jar artefact and the hunt resumes on solid ground
+
+MEASURED with `lib/kof.jar` rebuilt from the tree (`60d01d947`, the §1207-aware compiler): the same probe that printed `at=20` in earlier rounds now prints `altura=0` for `BlogCuerpoRich.paintWrappedMarked(...)` AND `key=0` for `RichText.height(listOf(blk))` — two independent call sites of `RichText.height`, both 0, in the same process where the parse produced one block. So (a) the `0` is a real defect of the current compiler, (b) the §135 "IR with `KofCall(height)` but output 20" reading came from a probe built with the STALE jar, and is WITHDRAWN, (c) `RichText.height` itself is broken for this list, which is a shorter path to the defect than the painter.
+
+NEXT (named): a minimal `RichText.height` reproducer — `height(listOf(RichText.blocks("a").get(0)))` prints 0 while `blockHeight(blocks.get(0))` prints the right value; then cut inside `height` (a loop over blocks summing `blockHeight`) until the 0 appears. `NativeStaticOverloadCallSiteE2ETest` already guards the overload-link class of failure, so a wrong-definition link is excluded.
+
+APP: unchanged (113 / 2), measured with the correct jar.
