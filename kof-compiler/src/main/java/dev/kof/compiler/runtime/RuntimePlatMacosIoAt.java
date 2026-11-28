@@ -320,6 +320,44 @@ public final class RuntimePlatMacosIoAt {
                 popq %r15
                 ret
 
+            .globl kof_plat_getcwd
+            .type kof_plat_getcwd, @function
+            kof_plat_getcwd:
+                # getcwd(buf=%rdi, size=%rsi) -> buf | -errno (a mesma ABI)
+                pushq %r15
+                movq %rsp, %r15
+                andq $-16, %rsp
+                call getcwd
+                testq %rax, %rax
+                jns .Lpgcw_ret
+                call __error
+                movl (%rax), %eax
+                negl %eax
+            .Lpgcw_ret:
+                subq %rsp, %r15
+                addq %r15, %rsp
+                popq %r15
+                ret
+
+            .globl kof_plat_rename
+            .type kof_plat_rename, @function
+            kof_plat_rename:
+                # rename(old=%rdi, new=%rsi) -> 0 | -errno (a mesma ABI)
+                pushq %r15
+                movq %rsp, %r15
+                andq $-16, %rsp
+                call rename
+                testl %eax, %eax
+                jns .Lprn2_ret
+                call __error
+                movl (%rax), %eax
+                negl %eax
+            .Lprn2_ret:
+                subq %rsp, %r15
+                addq %r15, %rsp
+                popq %r15
+                ret
+
             """);
     }
 }

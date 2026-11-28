@@ -85,7 +85,6 @@ public final class RuntimeLog2 {
                 movq %rbx, %rdx
                 subq %r15, %rdx
                 movq %r15, %rsi
-                movq $1, %rax
                 cmpq $2, %r12
                 jl .Llog_fd_stdout
                 movq $2, %rdi
@@ -93,7 +92,7 @@ public final class RuntimeLog2 {
             .Llog_fd_stdout:
                 movq $1, %rdi
             .Llog_do_write:
-                syscall
+                call kof_plat_write
                 movq %r15, %rdi
                 call kof_free
             .Llog_suppressed:

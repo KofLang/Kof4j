@@ -784,6 +784,23 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 22 POUSADA 24/11 — os ÚLTIMOS syscalls crus do pacote
+  `runtime/` saíram da costura (known-bugs §1255).** As faces do fuso/arquivo
+  (`RuntimeTime`: o `read` de uma linha, o `openat` e o `fstat`), o
+  `getcwd` (79) da face de caminho absoluto (`RuntimeIo1`), o `rename` (82)
+  da face de mover (`RuntimeIoMove`), o `write` (1) do impressor de números
+  (`RuntimePrintNum`) e do escritor de log (`RuntimeLog2`) — os 8 sítios
+  agora chamam a costura; as duas faces novas (`kof_plat_getcwd`,
+  `kof_plat_rename`) são 1:1 na libSystem (`getcwd`, `rename`). **O MARCO
+  (medido pelo gate da costura):** o pacote `runtime/` **não tem mais nenhum
+  syscall cru** — o inventário inteiro fora da costura agora são **12 sítios,
+  todos no pacote `nat/`** (`NativeWebListen` 7, `NativeNetFrontUdp` 2,
+  `NativeWebResponses` 2, `NativeNetFront` 1). A sequência é 148 → 127 → 103
+  → 78 → 49 → 39 → 27 → 23 → 20 → 16 → 12. **PROVA (executada):** as
+  baterias de io + log e o runtime inteiro ainda MONTA e LINCA no toolchain
+  real do Mach-O; o RED medido (com os corpos antigos o gate imprimia
+  `fora-da-costura=23`/`20`, agora `12`).
+
   **M-6 FATIA 21 POUSADA 24/11 — o corpo HOST da costura do allocator
   finalmente fala a costura também (known-bugs §1254).** O
   `kof_plat_heap_grow` mora no `RuntimeMemory`, e o corpo host ainda fazia

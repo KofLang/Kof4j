@@ -782,6 +782,23 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 22 LANDED 24/11 — the LAST raw syscalls of the `runtime/`
+  package left the seam (known-bugs §1255).** The timezone/file faces
+  (`RuntimeTime`: the `read` of a line, the `openat` and the `fstat`), the
+  `getcwd` (79) of the absolute-path face (`RuntimeIo1`), the `rename` (82)
+  of the move face (`RuntimeIoMove`), the `write` (1) of the number printer
+  (`RuntimePrintNum`) and of the log writer (`RuntimeLog2`) — the 8 sites now
+  call the seam; the two new faces (`kof_plat_getcwd`, `kof_plat_rename`) are
+  1:1 in the libSystem (`getcwd`, `rename`). **THE MILESTONE (measured by
+  the seam gate):** the `runtime/` package has **no raw syscall left** — the
+  whole inventory outside the seam is now **12 sites, all in the `nat/`
+  package** (`NativeWebListen` 7, `NativeNetFrontUdp` 2,
+  `NativeWebResponses` 2, `NativeNetFront` 1). The sequence is 148 → 127 →
+  103 → 78 → 49 → 39 → 27 → 23 → 20 → 16 → 12. **PROOF (executed):** the
+  io + log batteries and the whole runtime still ASSEMBLES and LINKS in the
+  real Mach-O toolchain; the RED measured (with the old bodies the gate
+  printed `fora-da-costura=23`/`20`, now `12`).
+
   **M-6 SLICE 21 LANDED 24/11 — the HOST body of the allocator's seam finally
   speaks the seam too (known-bugs §1254).** `kof_plat_heap_grow` lives in
   `RuntimeMemory`, and its host body still did the `mmap` (9) and the

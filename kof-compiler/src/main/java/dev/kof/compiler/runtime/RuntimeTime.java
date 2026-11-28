@@ -41,12 +41,11 @@ public final class RuntimeTime {
             .Lkof_read_line_loop:
                 cmpq $511, %r12
                 jge .Lkof_read_line_done
-                movq $0, %rax
                 movq $0, %rdi
                 movq $1, %rsi
                 movq %rbx, %rdx
                 addq %r12, %rdx
-                syscall
+                call kof_plat_read
                 testq %rax, %rax
                 jle .Lkof_read_line_eof
                 movq %rbx, %rcx
@@ -98,16 +97,14 @@ public final class RuntimeTime {
                 movq $-100, %rdi
                 leaq 24(%rbx), %rsi
                 movq $0, %rdx
-                movq $257, %rax
-                syscall
+                call kof_plat_openat
                 testq %rax, %rax
                 js .Lkof_read_file_err
                 movq %rax, %r12
                 subq $144, %rsp
                 movq %r12, %rdi
                 movq %rsp, %rsi
-                movq $5, %rax
-                syscall
+                call kof_plat_fstat_fd
                 movq 48(%rsp), %r13
                 addq $144, %rsp
                 leal 25(%r13), %edi
@@ -150,8 +147,7 @@ public final class RuntimeTime {
                 leaq 24(%rbx), %rsi
                 movq $577, %rdx
                 movq $420, %r10
-                movq $257, %rax
-                syscall
+                call kof_plat_openat
                 testq %rax, %rax
                 js .Lkof_write_file_fail
                 movq %rax, %rdi

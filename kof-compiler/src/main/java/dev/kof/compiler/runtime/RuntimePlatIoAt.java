@@ -139,6 +139,22 @@ public final class RuntimePlatIoAt {
                 syscall
                 ret
 
+            .globl kof_plat_getcwd
+            .type kof_plat_getcwd, @function
+            kof_plat_getcwd:
+                # getcwd(buf=%rdi, size=%rsi) -> buf | -errno
+                movq $79, %rax
+                syscall
+                ret
+
+            .globl kof_plat_rename
+            .type kof_plat_rename, @function
+            kof_plat_rename:
+                # rename(old=%rdi, new=%rsi) -> 0 | -errno
+                movq $82, %rax
+                syscall
+                ret
+
             """);
     }
 }

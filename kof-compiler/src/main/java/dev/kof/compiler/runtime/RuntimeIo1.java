@@ -347,8 +347,7 @@ public final class RuntimeIo1 {
                 subq $4096, %rsp
                 movq %rsp, %rdi
                 movq $4096, %rsi
-                movq $79, %rax
-                syscall
+                call kof_plat_getcwd
                 testq %rax, %rax
                 js .Lio_toabs_err
                 movq %rsp, %rdi

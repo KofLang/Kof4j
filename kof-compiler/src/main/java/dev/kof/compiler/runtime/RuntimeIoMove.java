@@ -29,8 +29,7 @@ public final class RuntimeIoMove {
                     jns .Lio_mv_no
                     leaq 24(%rbx), %rdi
                     leaq 24(%r12), %rsi
-                    movq $82, %rax
-                    syscall
+                    call kof_plat_rename
                     testq %rax, %rax
                     jne .Lio_mv_no
                     movq $1, %rax

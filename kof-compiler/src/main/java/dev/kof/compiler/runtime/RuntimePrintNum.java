@@ -61,9 +61,8 @@ public final class RuntimePrintNum {
                 incq %rsi
             .Lkof_print_int_ready:
                 movq %r13, %rdx
-                movq $1, %rax
                 movq $1, %rdi
-                syscall
+                call kof_plat_write
                 popq %r13
                 popq %r12
                 popq %rbx
