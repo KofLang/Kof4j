@@ -339,10 +339,51 @@ public final class ExpressionJsonCallLowerer {
                     // #1181 fatia 2: o campo nullable vem CRU do find_value
                     // (o JSON null → null pela RuntimeJsonUtils); o String?
                     // fica como está (o valor OU null); nenhum decodificar.
+                } else if (ft instanceof Type.ClassType nct
+                        && !BuiltinTypes.isString(ft) && !BuiltinTypes.isList(ft)
+                        && !BuiltinTypes.isMap(ft)) {
+                    // #1181 fatia 3 (o record ANINHADO): o valor do find_value É
+                    // o TEXTO BRUTO do sub-objeto — o decode recursivo pelo
+                    // MESMO padrão do flat (o NewObject+Dup+finds+ctor do
+                    // interno; o resultado fica na pilha para o ctor do pai).
+                    String ncn = nct.packageName().isEmpty() ? nct.name()
+                            : nct.packageName() + "." + nct.name();
+                    java.util.List<String[]> nf = driver.classFieldsOrdered(ncn);
+                    if (!nf.isEmpty()) {
+                        int save = localIdx;
+                        ops.add(new KofStoreLocal(BuiltinTypes.STRING, save));
+                        locals.add(new IRLocalVariable(save, "#subjson", BuiltinTypes.STRING));
+                        localIdx += 1;
+                        List<Type> subCtor = new ArrayList<>();
+                        ops.add(new KofNewObject(nct,
+                                nf.stream().map(f2 -> CompilerTypes.toType(f2[1], driver.currentUnit)).toList()));
+                        ops.add(new KofDup());
+                        for (String[] nf2 : nf) {
+                            Type nft = CompilerTypes.toType(nf2[1], driver.currentUnit);
+                            subCtor.add(nft);
+                            ops.add(new KofLoadLocal(BuiltinTypes.STRING, save));
+                            ops.add(new KofLoadLiteral(BuiltinTypes.STRING, nf2[0]));
+                            ops.add(new KofCall(BuiltinTypes.STRING, "kof_json_find_value",
+                                    List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                                    BuiltinTypes.STRING, KofCallKind.FUNCTION));
+                            String ndec = switch (nft instanceof Type.PrimitiveType np
+                                    ? Type.canonicalPrimitiveName(np.name()) : "") {
+                                case "int", "char", "byte", "short" -> "kof_json_decode_int";
+                                case "long" -> "kof_json_decode_long";
+                                case "bool" -> "kof_json_decode_bool";
+                                default -> null;
+                            };
+                            if (ndec != null) {
+                                ops.add(new KofCall(BuiltinTypes.STRING, "kof_json_require",
+                                        List.of(BuiltinTypes.STRING), BuiltinTypes.STRING, KofCallKind.FUNCTION));
+                                ops.add(new KofCall(nct, ndec,
+                                        List.of(BuiltinTypes.STRING), nft, KofCallKind.FUNCTION));
+                            }
+                        }
+                        ops.add(new KofCall(nct, "<init>", subCtor,
+                                Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
+                    }
                 }
-                // #1181 fatia 3 (o record ANINHADO): AINDA RECUSADO (§1238) —
-                // o emit do ctor aninhado não consome a pilha como o flat; o
-                // gate do fieldOk mantém a recusa honesta.
             }
             ops.add(new KofCall(targetType, "<init>", ctorTypes,
                     Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));

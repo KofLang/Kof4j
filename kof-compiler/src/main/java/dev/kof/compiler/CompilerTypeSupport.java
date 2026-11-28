@@ -215,10 +215,21 @@ public final class CompilerTypeSupport {
         }
         if (t instanceof Type.PrimitiveType) return true;
         if (BuiltinTypes.isString(t)) return true;
-        // #1181 (a fatia 3 — o record ANINHADO): AINDA RECUADO (§1238): o
-        // emit do ctor aninhado no paths nativo não consome a pilha como o
-        // flat (o pai lê o filho errado: o id vem null e o acesso SEGV). O
-        // gate mantém a recusa HONESTA até a fatia do emit sair completa.
+        // #1181 (a fatia 3 — o record ANINHADO): o gate aceita quando o
+        // record aninhado tem campos suportados (o mesmo critério do
+        // nativeRecordWalkerOk — o decoder desce pelo find_value + o ctor do
+        // sub-objeto; o keyspace do #1249 consertou o call-site nativo).
+        if (t instanceof Type.ClassType ct && !BuiltinTypes.isList(t)
+                && !BuiltinTypes.isMap(t) && !BuiltinTypes.isSet(t)) {
+            String cn2 = ct.packageName().isEmpty() ? ct.name()
+                    : ct.packageName() + "." + ct.name();
+            var sub = driver.classFieldsOrdered(cn2);
+            if (!sub.isEmpty()
+                    && sub.stream().allMatch(f2 -> fieldOk(driver, f2[1], cn2,
+                            visiting))) {
+                return true;
+            }
+        }
         if (driver.currentDiagnostics != null) {
             driver.currentDiagnostics.error("", 0, 0, 0,
                     "json: class " + className + " has field of type " + typeName
