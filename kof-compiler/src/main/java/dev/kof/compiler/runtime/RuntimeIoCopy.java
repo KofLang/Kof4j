@@ -44,8 +44,7 @@ public final class RuntimeIoCopy {
                     leaq 24(%rbx), %rsi
                     xorq %rdx, %rdx
                     xorq %r10, %r10
-                    movq $257, %rax
-                    syscall
+                    call kof_plat_openat
                     testq %rax, %rax
                     js .Lkof_iocp_zero
                     movq %rax, %r13
@@ -53,8 +52,7 @@ public final class RuntimeIoCopy {
                     leaq 24(%r12), %rsi
                     movq $193, %rdx
                     movq $420, %r10
-                    movq $257, %rax
-                    syscall
+                    call kof_plat_openat
                     testq %rax, %rax
                     js .Lkof_iocp_closesrc
                     movq %rax, %r14
@@ -62,15 +60,13 @@ public final class RuntimeIoCopy {
                     movq %r13, %rdi
                     leaq 176(%rsp), %rsi
                     movq $8192, %rdx
-                    xorq %rax, %rax
-                    syscall
+                    call kof_plat_read
                     testq %rax, %rax
                     jle .Lkof_iocp_attrs
                     movq %rax, %rdx
                     movq %r14, %rdi
                     leaq 176(%rsp), %rsi
-                    movq $1, %rax
-                    syscall
+                    call kof_plat_write
                     testq %rax, %rax
                     jle .Lkof_iocp_fail
                     jmp .Lkof_iocp_loop
@@ -78,30 +74,24 @@ public final class RuntimeIoCopy {
                     movl 24(%rsp), %esi
                     andl $4095, %esi
                     movq %r14, %rdi
-                    movq $91, %rax
-                    syscall
+                    call kof_plat_fchmod
                     movq $-100, %rdi
                     leaq 24(%r12), %rsi
                     leaq 144(%rsp), %rdx
                     xorq %r10, %r10
-                    movq $280, %rax
-                    syscall
+                    call kof_plat_unlinkat
                     movq %r14, %rdi
-                    movq $3, %rax
-                    syscall
+                    call kof_plat_close
                     movq %r13, %rdi
-                    movq $3, %rax
-                    syscall
+                    call kof_plat_close
                     movq $1, %rax
                     jmp .Lkof_iocp_ret
                 .Lkof_iocp_fail:
                     movq %r14, %rdi
-                    movq $3, %rax
-                    syscall
+                    call kof_plat_close
                 .Lkof_iocp_closesrc:
                     movq %r13, %rdi
-                    movq $3, %rax
-                    syscall
+                    call kof_plat_close
                 .Lkof_iocp_zero:
                     xorl %eax, %eax
                 .Lkof_iocp_ret:

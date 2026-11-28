@@ -332,6 +332,7 @@ public final class RuntimePlat {
                 syscall
                 ret
 
+
             .globl kof_plat_unlink
             .type kof_plat_unlink, @function
             kof_plat_unlink:

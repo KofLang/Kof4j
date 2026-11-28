@@ -784,6 +784,25 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 18 POUSADA 24/11 — a CÓPIA de arquivo entrou na costura, e a
+  família io da costura ganhou as faces `*at` (known-bugs §1248).** A cópia
+  usava syscalls crus — `openat` (257), `read`, `write`, `fchmod` (91),
+  `unlinkat` (280) e `close`. Os 10 sítios agora chamam a costura, e a
+  costura ganhou `kof_plat_openat`, `kof_plat_mkdirat`,
+  `kof_plat_unlinkat`, `kof_plat_symlinkat`, `kof_plat_readlinkat`,
+  `kof_plat_renameat` e `kof_plat_fchmod`. **AS DIFERENÇAS MEDIDAS:** o
+  Darwin não tem `openat` nem `unlinkat` — o corpo usa `open` (com o
+  `AT_FDCWD`) e escolhe entre `unlink` e `rmdir` pela flag `AT_REMOVEDIR`; o
+  `mkdirat`/`symlinkat`/`readlinkat`/`renameat` são `mkdir`/`symlink`/
+  `readlink`/`rename` lá. **PROVA (executada):**
+  `NativeIoCopySeamE2ETest` 1/1 — RED-first (o syscall cru volta na árvore
+  antiga); `IoE2ETest` 26/26 com o runtime inteiro ainda MONTANDO e
+  LINKANDO no toolchain real do Mach-O; o ratchet da costura **CAI
+  49 → 39**. **O QUE RESTA FORA DA COSTURA (nomeado):** `RuntimeIo3` (12
+  sítios), `RuntimeIo2` (4), `RuntimeIo1`/`RuntimeIoMove`/`RuntimeLog2`/
+  `RuntimePrintNum` (1 cada), `RuntimeTime`/`RuntimeMemory` (4/3) — e a
+  família `stat`, cujo layout do Darwin precisa do seu próprio corpo.
+
   **M-6 FATIA 17 POUSADA 24/11 — o SHELL pipeline saiu do ABI cru: a LINHA
   M-2 DE PROCESSOS ACABOU COMO FAMÍLIA (known-bugs §1245).** O terceiro e
   último arquivo cru da família (`RuntimeShellPipeline`, 30 sítios: pipe2,
