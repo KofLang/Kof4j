@@ -36,6 +36,9 @@ class NativeIoCopySeamE2ETest {
                 var g = File("/tmp/kof-io-copy-seam-target.txt")
                 println(g.copyTo("/tmp/kof-io-copy-seam-source.txt"))
                 println(g.readText())
+                var d = Directory("/tmp/kof-io-seam-dir")
+                println(d.create())
+                println(d.delete())
             }
             """;
 
@@ -83,5 +86,29 @@ class NativeIoCopySeamE2ETest {
                 "the close goes through the seam:\n" + body);
         assertTrue(body.contains("call kof_plat_fchmod"),
                 "the mode goes through the seam:\n" + body);
+    }
+
+    /**
+     * A face de CRIAR/REMOVER diretorio tambem: o `mkdir` (83), o
+     * `rmdir` (84) e o `unlink` (87) passam pela costura.
+     */
+    @Test
+    void theDirectoryFacesGoThroughTheSeam(@TempDir Path tmp) throws IOException {
+        String asm = assembly(tmp);
+        for (String fn : java.util.List.of("kof_io_dir_create", "kof_io_dir_create_dirs",
+                "kof_io_dir_delete")) {
+            int at = asm.indexOf(fn + ":");
+            assertTrue(at > 0, "the function is in the text: " + fn);
+            String body = asm.substring(at, Math.min(asm.length(), at + 3000));
+            boolean raw = false;
+            for (String line : body.split("\n", -1)) {
+                if (line.trim().equals("syscall")) raw = true;
+            }
+            assertFalse(raw, "no raw syscall left in " + fn + ":\n" + body);
+        }
+        assertTrue(asm.contains("call kof_plat_mkdir"),
+                "the mkdir goes through the seam");
+        assertTrue(asm.contains("call kof_plat_rmdir"),
+                "the rmdir goes through the seam");
     }
 }

@@ -92,6 +92,21 @@ public final class RuntimePlatIoAt {
                 movq $264, %rax           # SYS_renameat
                 syscall
                 ret
+            .globl kof_plat_mkdir
+            .type kof_plat_mkdir, @function
+            kof_plat_mkdir:
+                movq $83, %rax           # mkdir(path=%rdi, mode=%rsi)
+                syscall
+                ret
+
+            .globl kof_plat_getdents
+            .type kof_plat_getdents, @function
+            kof_plat_getdents:
+                # getdents64(fd=%rdi, dirp=%rsi, count=%rdx) -> n | -errno
+                movq $217, %rax           # SYS_getdents64
+                syscall
+                ret
+
             """);
     }
 }

@@ -782,6 +782,23 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 19 LANDED 24/11 — the io3 family joined the seam (known-bugs
+  §1250).** The byte writers, the directory create/createDirectories/delete and
+  the directory listing used raw syscalls (`openat` 257, `getdents64` 217,
+  `mkdir` 83, `rmdir` 84, `unlink` 87). The 12 sites now call the seam, and
+  the seam gained the two missing faces (`kof_plat_mkdir`,
+  `kof_plat_getdents`). **THE MEASURED DIFFERENCE:** the Darwin has no
+  `getdents64` — the body calls `getdirentries` (whose `dirent` layout
+  DIFFERS from the Linux one; the Kof runtime parses its own block, so the
+  body only delivers the raw block); the `mkdir`/`rmdir`/`unlink` are 1:1
+  in the libSystem. **PROOF (executed):** `NativeIoCopySeamE2ETest` 2/2 —
+  RED-first (the raw syscall is back on the old tree); `IoE2ETest` 26/26
+  with the whole runtime still ASSEMBLING and LINKING in the real Mach-O
+  toolchain; the seam ratchet **FALLS 39 → 27**. **WHAT REMAINS OUT OF THE
+  SEAM (named):** `RuntimeIo2` (4 sites), `RuntimeIo1`/`RuntimeIoMove`/
+  `RuntimeLog2`/`RuntimePrintNum` (1 each), `RuntimeTime`/`RuntimeMemory`
+  (4/3) — and the `stat` family, whose Darwin layout needs its own body.
+
   **M-6 SLICE 18 LANDED 24/11 — the FILE COPY joined the seam, and the seam's io
   family gained the `*at` faces (known-bugs §1248).** The copy used raw
   syscalls — `openat` (257), `read`, `write`, `fchmod` (91), `unlinkat` (280)

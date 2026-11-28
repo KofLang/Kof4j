@@ -179,6 +179,46 @@ public final class RuntimePlatMacosIoAt {
                 addq %r15, %rsp
                 popq %r15
                 ret
+            .globl kof_plat_mkdir
+            .type kof_plat_mkdir, @function
+            kof_plat_mkdir:
+                # mkdir(path=%rdi, mode=%rsi) -> 0 | -errno (a mesma ABI)
+                pushq %r15
+                movq %rsp, %r15
+                andq $-16, %rsp
+                call mkdir
+                testl %eax, %eax
+                jns .Lpmm_ret
+                call __error
+                movl (%rax), %eax
+                negl %eax
+            .Lpmm_ret:
+                subq %rsp, %r15
+                addq %r15, %rsp
+                popq %r15
+                ret
+
+            .globl kof_plat_getdents
+            .type kof_plat_getdents, @function
+            kof_plat_getdents:
+                # getdents64(fd=%rdi, dirp=%rsi, count=%rdx) — o Darwin usa
+                # getdirentries (o layout do dirent DIFERE: o Kof usa o
+                # proprio, entao o corpo so' entrega o bloco cru).
+                pushq %r15
+                movq %rsp, %r15
+                andq $-16, %rsp
+                call getdirentries
+                testl %eax, %eax
+                jns .Lpgd_ret
+                call __error
+                movl (%rax), %eax
+                negl %eax
+            .Lpgd_ret:
+                subq %rsp, %r15
+                addq %r15, %rsp
+                popq %r15
+                ret
+
             """);
     }
 }

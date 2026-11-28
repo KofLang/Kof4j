@@ -784,6 +784,24 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 19 POUSADA 24/11 — a família io3 entrou na costura (known-bugs
+  §1250).** Os escritores de bytes, o create/createDirectories/delete de
+  diretório e a listagem de diretório usavam syscalls crus (`openat` 257,
+  `getdents64` 217, `mkdir` 83, `rmdir` 84, `unlink` 87). Os 12 sítios agora
+  chamam a costura, e a costura ganhou as duas faces que faltavam
+  (`kof_plat_mkdir`, `kof_plat_getdents`). **A DIFERENÇA MEDIDA:** o Darwin
+  não tem `getdents64` — o corpo chama `getdirentries` (cujo layout de
+  `dirent` DIFERE do Linux; o runtime do Kof parseia o seu próprio bloco,
+  então o corpo só entrega o bloco cru); o `mkdir`/`rmdir`/`unlink` são
+  1:1 na libSystem. **PROVA (executada):**
+  `NativeIoCopySeamE2ETest` 2/2 — RED-first (o syscall cru volta na árvore
+  antiga); `IoE2ETest` 26/26 com o runtime inteiro ainda MONTANDO e
+  LINKANDO no toolchain real do Mach-O; o ratchet da costura **CAI
+  39 → 27**. **O QUE RESTA FORA DA COSTURA (nomeado):** `RuntimeIo2` (4
+  sítios), `RuntimeIo1`/`RuntimeIoMove`/`RuntimeLog2`/`RuntimePrintNum`
+  (1 cada), `RuntimeTime`/`RuntimeMemory` (4/3) — e a família `stat`, cujo
+  layout do Darwin precisa do seu próprio corpo.
+
   **M-6 FATIA 18 POUSADA 24/11 — a CÓPIA de arquivo entrou na costura, e a
   família io da costura ganhou as faces `*at` (known-bugs §1248).** A cópia
   usava syscalls crus — `openat` (257), `read`, `write`, `fchmod` (91),

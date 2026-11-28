@@ -37,8 +37,7 @@ public final class RuntimeIo3 {
                 leaq 24(%rbx), %rsi
                 movq $577, %rdx
                 movq $420, %r10
-                movq $257, %rax
-                syscall
+                call kof_plat_openat
                 testq %rax, %rax
                 js .Lio_wb_err
                 movq %rax, %rbx
@@ -88,8 +87,7 @@ public final class RuntimeIo3 {
                 leaq 24(%rbx), %rsi
                 movq $1089, %rdx
                 movq $420, %r10
-                movq $257, %rax
-                syscall
+                call kof_plat_openat
                 testq %rax, %rax
                 js .Lio_ab_err
                 movq %rax, %rbx
@@ -140,8 +138,7 @@ public final class RuntimeIo3 {
                 leaq 24(%rbx), %rsi
                 movq $193, %rdx              # O_WRONLY|O_CREAT|O_EXCL
                 movq $420, %r10              # mode 0644
-                movq $257, %rax              # openat
-                syscall
+                call kof_plat_openat              # openat
                 testq %rax, %rax
                 js .Lio_createnew_fail
                 movq %rax, %rdi
@@ -163,8 +160,7 @@ public final class RuntimeIo3 {
                 movq %rdi, %rbx
                 leaq 24(%rbx), %rdi
                 movq $493, %rsi
-                movq $83, %rax
-                syscall
+                call kof_plat_mkdir
                 testq %rax, %rax
                 je .Lio_mkdir_ok
                 xorl %eax, %eax
@@ -202,8 +198,7 @@ public final class RuntimeIo3 {
             .Lio_dirs_final:
                 leaq 24(%rbx), %rdi
                 movq $493, %rsi
-                movq $83, %rax
-                syscall
+                call kof_plat_mkdir
                 testq %rax, %rax
                 je .Lio_dirs_ok
                 cmpq $-17, %rax
@@ -243,8 +238,7 @@ public final class RuntimeIo3 {
                 jle .Lio_dirs_prefix_skip
                 movq %r8, %rdi
                 movq $493, %rsi
-                movq $83, %rax
-                syscall
+                call kof_plat_mkdir
                 testq %rax, %rax
                 je .Lio_dirs_prefix_skip
                 cmpq $-17, %rax
@@ -281,8 +275,7 @@ public final class RuntimeIo3 {
                 movq $-100, %rdi
                 leaq 24(%rbx), %rsi
                 xorl %edx, %edx
-                movq $257, %rax
-                syscall
+                call kof_plat_openat
                 testq %rax, %rax
                 js .Lio_dd_zero
                 movq %rax, %r12
@@ -293,8 +286,7 @@ public final class RuntimeIo3 {
                 movq %r12, %rdi
                 movq %r13, %rsi
                 movq $8192, %rdx
-                movq $217, %rax
-                syscall
+                call kof_plat_getdents
                 testq %rax, %rax
                 jle .Lio_dd_loop_done
                 movq %rax, %r14
@@ -340,16 +332,14 @@ public final class RuntimeIo3 {
                 movq %r12, %rdi
                 call kof_plat_close          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 leaq 24(%rbx), %rdi
-                movq $84, %rax
-                syscall
+                call kof_plat_rmdir
                 testq %rax, %rax
                 jne .Lio_dd_zero
                 movq $1, %rax
                 jmp .Lio_dd_done
             .Lio_dd_file:
                 leaq 24(%rbx), %rdi
-                movq $87, %rax
-                syscall
+                call kof_plat_unlink
                 testq %rax, %rax
                 jne .Lio_dd_zero
                 movq $1, %rax
@@ -378,8 +368,7 @@ public final class RuntimeIo3 {
                 movq $-100, %rdi
                 leaq 24(%rbx), %rsi
                 movq $65536, %rdx
-                movq $257, %rax
-                syscall
+                call kof_plat_openat
                 testq %rax, %rax
                 js .Lio_list_err
                 movq %rax, %rbx
@@ -390,8 +379,7 @@ public final class RuntimeIo3 {
                 movq %rbx, %rdi
                 movq %r13, %rsi
                 movq $32768, %rdx
-                movq $217, %rax
-                syscall
+                call kof_plat_getdents
                 testq %rax, %rax
                 jle .Lio_list_done
                 movq %rax, %r14
