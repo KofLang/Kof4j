@@ -249,7 +249,14 @@ final class NativeOpHelpers {
             }
         }
         if (kc.ownerType() instanceof Type.ClassType ct) {
-            String key = ct.name() + "." + kc.methodName();
+            // #1248 (o triage 28/11): o key-space do CALL SITE divergia do
+            // registry — os defs registram o fnKey (`soma` OU `soma#I_I`
+            // quando a classe tem overloads de MESMA aridade), mas o branch de
+            // instância consultava `Duas.soma` (nunca presente) e caía no
+            // fallback NÃO-tagged → `undefined reference` no ld. O lookup usa
+            // o MESMO fnKey dos defs.
+            String key = NativeSymbolMangling.fnKey(ct.name(), kc.methodName(),
+                    kc.parameterTypes(), nb.allClassesMap);
             return nb.functionMangleMap.getOrDefault(key,
                     nb.classTypeManglePrefix(ct) + "_" + nb.sanitizeName(kc.methodName()));
         }
