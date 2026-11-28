@@ -23,7 +23,7 @@
 557	kof-compiler/src/main/java/dev/kof/compiler/CompilerPipeline.java
 548	kof-compiler/src/main/java/dev/kof/compiler/CompilerRecordSupport.java
 557	kof-compiler/src/main/java/dev/kof/compiler/CompilerTypes.java
-561	kof-compiler/src/main/java/dev/kof/compiler/ExpressionBinaryLowerer.java
+550	kof-compiler/src/main/java/dev/kof/compiler/ExpressionBinaryLowerer.java
 587	kof-compiler/src/main/java/dev/kof/compiler/ExpressionBuiltinInstanceCalls.java
 597	kof-compiler/src/main/java/dev/kof/compiler/ExpressionInstanceCallLowerer.java
 536	kof-compiler/src/main/java/dev/kof/compiler/ExpressionStaticCallLowerer.java
@@ -112,7 +112,7 @@
 582	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeUi.java
 592	kof-compiler/src/main/java/dev/kof/compiler/SemanticAnalyzer.java
 521	kof-compiler/src/main/java/dev/kof/compiler/SemExpressionTyper.java
-542	kof-compiler/src/main/java/dev/kof/compiler/StatementAnalyzer.java
+547	kof-compiler/src/main/java/dev/kof/compiler/StatementAnalyzer.java
 519	kof-compiler/src/main/java/dev/kof/compiler/StatementLowerer.java
 545	kof-compiler/src/main/java/dev/kof/compiler/SymbolTableBuilder.java
 562	kof-compiler/src/main/java/dev/kof/compiler/Type.java
