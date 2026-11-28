@@ -2548,3 +2548,11 @@ NOT the package nor the declaration order: a minimal class + `while` + `return H
 NEXT (named): dump the painter's IR (`CompilerPipeline.prepareForInterpretation`) and look at the last ops of the method: if the `KofReturn` operand is a `KofLoadLiteral(0)` instead of the `KofCall(height)`, the defect is in the lowering of the return expression after a loop (a constant-propagation or the "no value" default of an `if` join); the fix goes RED-first with a fixture trimmed from the painter.
 
 APP: unchanged (113 / 2). The wrapper form stays until this closes.
+
+## §133 (26/11) — HONEST STATE OF THE `altura=0` HUNT: no minimal repro yet; what is ruled out, and the two leads still open
+
+RULED OUT this and the previous rounds (all measured, both targets, native and JVM agreeing): the trivial `while` + `return <local>` / `return 21`; `return H.f()` with the callee declared after the caller; an `if`/`else` inside a `while` whose arms return values; `val`/`var` receivers; one or two calls; with and without the SDL backend and `close()`. A copy of the painter's SHAPE (outer block loop, inner word loop calling `paintWord`, `return RichText.height(blocks)` at the end) on the real `RichText` with stubbed `Text`/`Draw` answers 20 in every variant tried — so the stub does not carry the trigger.
+
+LEADS STILL OPEN (named): (1) disable the IR optimizer for the real painter (`CompilerDriver.setOptimizationEnabled(false)` via a small driver, or a debug switch) — if the `0` disappears, the suspect is the label/return handling in the `Optimizer` passes (`reachability` and `removeJumpToNext`, the two that touch labels and returns); (2) copy `paintWrappedMarkedAt` VERBATIM into a test project (real `RichText` + the app's types, drawing calls replaced by no-ops) and cut from there — the stub approximated the shape but not the depth of the real `if`/`else if` chain.
+
+APP: unchanged (113 / 2: §1197 and the painter's `altura=0`). The wrapper form stays.

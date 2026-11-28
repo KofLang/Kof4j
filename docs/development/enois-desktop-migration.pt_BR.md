@@ -2246,3 +2246,11 @@ NÃO é o pacote nem a ordem de declaração: uma classe mínima + `while` + `re
 PRÓXIMO (nomeado): despejar o IR do pintor (`CompilerPipeline.prepareForInterpretation`) e olhar as últimas ops do método: se o operando do `KofReturn` é um `KofLoadLiteral(0)` em vez do `KofCall(height)`, o defeito está no lowering da expressão do return depois de um laço (uma propagação de constante ou o "sem valor" padrão de um join de `if`); a correção vai RED-first com um fixture enxugado a partir do pintor.
 
 APP: sem mudança (113 / 2). O embrulho fica até isto fechar.
+
+## §133 (26/11) — ESTADO HONESTO DA CAÇA AO `altura=0`: sem repro mínimo ainda; o que está descartado e as duas pistas abertas
+
+DESCARTADO nesta e nas rodadas anteriores (tudo medido, nos dois alvos, nativo e JVM concordando): o `while` trivial + `return <local>` / `return 21`; `return H.f()` com o chamado declarado depois do chamador; um `if`/`else` dentro de um `while` cujos ramos devolvem valor; receptor `val`/`var`; uma ou duas chamadas; com e sem o backend SDL e o `close()`. Uma cópia da FORMA do pintor (laço externo de blocos, laço interno de palavras chamando `paintWord`, `return RichText.height(blocks)` no fim) sobre o `RichText` real com `Text`/`Draw` falsos responde 20 em toda variante tentada — então o stub não carrega o gatilho.
+
+PISTAS AINDA ABERTAS (nomeadas): (1) desligar o otimizador de IR para o pintor real (`CompilerDriver.setOptimizationEnabled(false)` por um driver pequeno, ou um interruptor de debug) — se o `0` desaparecer, o suspeito é o tratamento de rótulos/retornos nas passes do `Optimizer` (`reachability` e `removeJumpToNext`, as duas que mexem em rótulos e retornos); (2) copiar o `paintWrappedMarkedAt` VERBATIM para um projeto de teste (o `RichText` real + os tipos do app, chamadas de desenho viradas no-op) e cortar a partir daí — o stub aproximou a forma, mas não a profundidade da cadeia real de `if`/`else if`.
+
+APP: sem mudança (113 / 2: §1197 e o `altura=0` do pintor). O embrulho fica.
