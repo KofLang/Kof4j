@@ -2222,3 +2222,17 @@ A MUDANÇA DESFEITA: fazer o `paintWrappedMarkedAt` devolver `RichText.height(bl
 PRÓXIMO NOMEADO: levar o `paintWrappedMarkedAt` do app, verbatim, para um teste do Kof4j (só precisa de `RichText`+`RichNode`), acrescentar o `println` do valor devolvido e apagar membros até o `0` aparecer — o membro cuja remoção vira o resultado é a fronteira entre a pintura e o passeio (`return` depois de `while`; já suspeito da mesma família do §1246).
 
 APP: o `README` documenta o passo do shim para um checkout novo. Comportamento visível ao usuário sem mudança (o embrulho devolve a mesma altura que o passeio mediu).
+
+## §131 (26/11) — O `altura=0` DO PINTOR DOBRADO, PRESO A UMA LINHA: `return RichText.height(<lista nova>)` dentro de uma função que depende do pintor devolve um CONSTANTE (o `0` da tabela ou o valor da primeira chamada) mesmo quando a mesma chamada responde certo com argumento LITERAL
+
+MEDIDO com uma sonda em Kof puro (sem SDL, sem fontes; `Main.kf` com `class H { static Int one(String s) { … } }` e um `main`):
+
+* `H.one(s) { var k = s.length(); return k }` chamada com "um"/"dois"/"tres" → `2/4/4` — a classe e o frame do `main` estão CERTOS.
+* `H.one(s) { val out = listOf<String>(); out.add(s); return out.size() }` chamada duas vezes → `1/1` — a forma com `listOf` é a que quebra.
+* `RichText.height(<listOf(blk) nova>)` composto DENTRO de uma função maior (`paintWrappedMarkedAt`): imprimir a chamada solta dá `20` nas duas vezes e o `paintWrappedMarked` (que embrulha o pintor num método) também dá `20`; mas a MESMA instrução no FIM do pintor devolve `0` — e uma forma guiada por tabela devolveu o valor da PRIMEIRA chamada (`c=1 d=1`, `q=2 a=1 b=1`). O assembly do pintor termina em `movq $0, %rax; leave; ret` depois do bloco do laço — a chamada do `height` NÃO está lá: o return foi dobrado para um constante no caminho que segue o laço.
+
+LEITURA: uma chamada cujo resultado é usado por um `return` seguinte DEPOIS de um laço, quando o chamado constrói um `listOf`, tem o valor trocado por constante (0) / pelo resultado da chamada anterior — a mesma impressão digital do §1246, agora reproduzida num arquivo sem pacote cruzado e sem `extern`. O pintor fica na forma de embrulho (a commitada) e a asserção `altura=0` não foi mantida.
+
+PRÓXIMO (nomeado): a sonda em Kof puro acima commitada como E2ETest do Kof4j (a forma `h=20 at=0 pm=20`, reduzida a `listOf`+`while`+`return`), depois o IR da função para ver de onde vem a constante; só então mexer no emit.
+
+APP: sem mudança nesta rodada; bateria 113 / 2 (§1197 + o `altura=0` do pintor).

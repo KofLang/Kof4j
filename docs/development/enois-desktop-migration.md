@@ -2524,3 +2524,17 @@ THE WITHDRAWN CHANGE: making `paintWrappedMarkedAt` `return RichText.height(bloc
 NAMED NEXT: take the app's `paintWrappedMarkedAt` verbatim into a Kof4j test (it only needs `RichText`+`RichNode`), add `println` of the return value, and delete members until the `0` appears — the member whose removal flips it is the boundary between the painting and the walk (`return` after `while`; already suspicious of the same family as §1246).
 
 APP: `README` documents the shim step for a fresh checkout. User-visible behaviour unchanged (the wrapper returns the same height the walk measured).
+
+## §131 (26/11) — THE `altura=0` OF THE WRAPPED PAINTER, PINNED TO ONE LINE: `return RichText.height(<fresh list>)` inside a function that depends on the painter returns a CONSTANT (the table-derived `0` or the first call's value) even when the same call answers right with a LITERAL argument
+
+MEASURED with a pure-Kof probe (no SDL, no fonts; `Main.kf` with `class H { static Int one(String s) { … } }` and a `main`):
+
+* `H.one(s) { var k = s.length(); return k }` called with "um"/"dois"/"tres" → `2/4/4` — the class + the `main` frame are FINE.
+* `H.one(s) { val out = listOf<String>(); out.add(s); return out.size() }` called twice → `1/1` — the `listOf` shape is the one that breaks.
+* `RichText.height(<fresh listOf(blk)>)` composed INSIDE a bigger function (`paintWrappedMarkedAt`): printing the bare call gives `20` both times and `paintWrappedMarked` (which wraps the painter in a method) gives `20`; but the SAME statement placed at the END of the painter returns `0` — and a table-driven form returned the FIRST call's value (`c=1 d=1`, `q=2 a=1 b=1`). The assembly of the painter ends with `movq $0, %rax; leave; ret` after the block loop — the `height` call is NOT there, so the return was folded to a constant on the path that follows the loop.
+
+READING: a call whose result is used by a subsequent `return` AFTER a loop, when the callee itself builds a `listOf`, gets its value replaced by a constant (0) / by the previous call's result — the same fingerprint as §1246 but now reproduced in a file with no cross-package or `extern` involvement. The painter is left on the wrapper form (the committed shape) and the `altura=0` test assertion was not kept.
+
+NEXT (named): the pure-Kof probe above committed as a Kof4j E2ETest (`h=20 at=0 pm=20` shape, reduced to `listOf`+`while`+`return`), then the IR of that function to see where the constant comes from; only then touch the emit.
+
+APP: unchanged this round; battery 113 / 2 (§1197 + the painter's `altura=0`).
