@@ -2625,3 +2625,20 @@ MEASURED (tree jar, `/tmp/ex10`, the import-stripped `RichText` unchanged):
 READING: something in the real `Sdl3Backend.kf` (its method count / handle-typed fields / the many `extern` params it passes, e.g. `Buffer(U8)` out-params) changes the module in a way that makes the `while` accumulator of a function in ANOTHER file read a stale slot. NEXT (named): copy `/tmp/ex10` with the FULL backend into a Kof4j test; then cut `Sdl3Backend.kf` members in halves (binary) — first the methods that take/return `Long` handles, then the `Buffer(U8)`-passing ones — until `hk` flips; the first member whose removal flips it is the compiler bug (fix RED-first with the trimmed pair).
 
 APP: unchanged (113 / 2), measured with the correct jar.
+
+## §141 (28/11) — THE `altura=0` IS NOT AN ACCUMULATOR BUG: `a.height(3)` resolves to a MEMBER OF AN UNRELATED CLASS (`Other2.height`) — the transitive import makes that class visible; and MEASURED it also DUPLICATES the sibling declarations in the IR (the native assembler: `symbol img_RichText_vtable is already defined`)
+
+MEASURED (tree jar rebuilt from the tree, fresh dirs):
+* the greedy bisection (`/tmp/bi`, `/tmp/g3`, `/tmp/g4`) cut the whole `game/` to one no-op method and the answer STAYED 0; the generated asm (kept with `KOF_KEEP_ASM=1`) showed the call site literal: `println("h=" + RichText.height(3))` emits `call img_Other_height` (NOT `img_RichText_height`) — the leftover class `Other2 { Int height() }` of the reduced module was the receiver's member.
+* the trigger is VISIBILITY, not the `game/` body: a module `src/` (`Main.kf` + `img/RichText.kf` + `img/Raster.kf`) answers 6 with an `img/Other2.kf` that nobody imports, and 9 (`img_Other_height`) when `img/Raster.kf` (the OTHER import of the entry) imports a file that declares `Other2`. No diagnostic; the wrong member answers.
+* the JVM oracle (javac) on the same shape: `a.height(3)` with `B` visible and `B` declaring `height` member links to `B.height` without an error ⇒ the gap is REAL, not invented.
+* second, independent defect found on the way: with `src/` as the module and an import that reaches a sibling of the package the entry itself imports, the sibling declarations are added TWICE to the IR (`img/RichText`, `img/Raster` twice — the probe `NativeImportSiblingProbeTest` printed `classes=6` for 4 real ones) → the Native linker fails with `symbol 'img_RichText_vtable' is already defined`; with the sibling deduped (`declaredSources`) the same probe prints `classes=4` and links.
+* and when the destination file carries the sibling import (`import img.Node` inside `img/RichText.kf`), the module is refused as `PKG007: import auto-referente: 'img.Node' importa a si mesmo` — a legit sibling import in the SAME package reads as a cycle, so the #1207 mutual-visibility face only works when the import is written ABSOLUTELY (in a library).
+
+STATE: the RED test `ImportTransitiveMemberE2ETest` (a well-formed `blocks/blockHeight/height` module, `Node` used only as a type) and the WIP of the dedup are PRESERVED — the probe file came back from a peer's preservation stash with a `def raio()` body (not Kof), and the edit hook reverted my edits twice mid-run, so this round records the measured evidence instead of a half-fixed tree.
+
+ISSUE: GITHUB #1208 (docs path only — the issue itself is only on GitHub; the three defects, the measured shapes and the javac oracle).
+
+NEXT (named): `ExpressionBareCallLowerer`'s `cs = getClass(mc.methodName())` / `ExpressionMethodCallLowerer`'s `rid` branch must NOT take `height` from a class the file does not import and that does not shadow `RichText` (the file imports `img.RichText` itself); restore `/tmp/s141/` (the `declaredSources` dedup of `CompilerImports` + the RED test), make it green without `def`, then the package-local `import img.X` inside `img/` must stop being PKG007 when `X` is a sibling file (the #1207 face's remaining half).
+
+APP: unchanged (113 / 2).

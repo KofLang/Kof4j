@@ -2323,3 +2323,20 @@ MEDIDO (jar da árvore, `/tmp/ex10`, o `RichText` sem imports intocado):
 LEITURA: algo no `Sdl3Backend.kf` real (o número de métodos / campos com handle / os muitos `extern` com `Buffer(U8)` de saída) muda o módulo de um jeito que faz o acumulador do `while` de uma função de OUTRO arquivo ler um slot velho. PRÓXIMO (nomeado): copiar o `/tmp/ex10` com o backend COMPLETO para um teste do Kof4j; depois cortar os membros do `Sdl3Backend.kf` pela metade (binário) — primeiro os métodos que tomam/devolvem handles `Long`, depois os que passam `Buffer(U8)` — até o `hk` virar; o primeiro membro cuja remoção vira o resultado é o bug do compilador (correção RED-first com o par enxugado).
 
 APP: sem mudança (113 / 2), medido com o jar correto.
+
+## §141 (28/11) — O `altura=0` NÃO É BUG DE ACUMULADOR: `a.height(3)` resolve para um MEMBRO DE OUTRA CLASSE (`Other2.height`), que o import transitivo torna visível; e MEDIDO ele também DUPLICA as declarações do irmão na IR (o assemblador nativo: `symbol img_RichText_vtable is already defined`)
+
+MEDIDO (jar reconstruído da árvore, diretórios novos):
+* a bisseção gulosa (`/tmp/bi`, `/tmp/g3`, `/tmp/g4`) cortou o `game/` inteiro a um método vazio e a resposta FICOU 0; o asm gerado (guardado com `KOF_KEEP_ASM=1`) expôs o sítio da chamada: `println("h=" + RichText.height(3))` emite `call img_Other_height` (NÃO `img_RichText_height`) — a classe `Other2 { Int height() }` que sobrou no módulo reduzido era o membro do receptor.
+* o gatilho é VISIBILIDADE, não o corpo do `game/`: um módulo `src/` (`Main.kf` + `img/RichText.kf` + `img/Raster.kf`) responde 6 com um `img/Other2.kf` que ninguém importa, e 9 (`img_Other_height`) quando o `img/Raster.kf` (o OUTRO import da entrada) importa um arquivo que declara `Other2`. Sem diagnóstico; o membro errado responde.
+* o oráculo JVM (javac) na mesma forma: `a.height(3)` com `B` visível e `B` declarando `height` liga em `B.height` sem erro ⇒ a lacuna é REAL, não inventada.
+* segundo defeito independente achado no caminho: com `src/` como módulo e um import que alcança um irmão do pacote que a própria entrada importa, as declarações do irmão entram DUAS VEZES na IR (o probe `NativeImportSiblingProbeTest` imprimiu `classes=6` para 4 reais) → o lincador nativo falha com `symbol 'img_RichText_vtable' is already defined`; com o irmão deduplicado (`declaredSources`) o mesmo probe imprime `classes=4` e linka.
+* e quando o arquivo de destino carrega o import do irmão (`import img.Node` dentro de `img/RichText.kf`), o módulo é recusado com `PKG007: import auto-referente: 'img.Node' importa a si mesmo` — um import de irmão LEGÍTIMO no MESMO pacote lê como ciclo, então a face de visibilidade mútua do #1207 só funciona com o import escrito ABSOLUTAMENTE (numa biblioteca).
+
+ESTADO: o teste RED `ImportTransitiveMemberE2ETest` (um módulo bem formado com `blocks/blockHeight/height`, `Node` usado só como tipo) e o WIP do dedup estão PRESERVADOS — o arquivo de probe voltou de um stash de preservação de outra lane com um corpo `def raio()` (não é Kof), e o hook de edição reverteu minhas edições duas vezes no meio da rodada; então esta rodada registra a evidência medida em vez de uma árvore meio-corrigida.
+
+ISSUE: GITHUB #1208 (só o link — o texto do issue está no GitHub; os três defeitos, as formas medidas e o oráculo javac).
+
+PRÓXIMO (nomeado): o `cs = getClass(mc.methodName())` do `ExpressionBareCallLowerer` / o ramo `rid` do `ExpressionMethodCallLowerer` NÃO pode pegar `height` de uma classe que o arquivo não importa e que não sombreia `RichText` (o arquivo importa o próprio `img.RichText`); restaurar `/tmp/s141/` (o dedup `declaredSources` do `CompilerImports` + o teste RED), deixá-lo verde sem `def`, e depois o `import img.X` dentro de `img/` deve deixar de ser PKG007 quando `X` é um irmão (a metade restante da face do #1207).
+
+APP: sem mudança (113 / 2).
