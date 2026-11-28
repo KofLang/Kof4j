@@ -25,6 +25,13 @@ class GameExampleE2ETest implements LibraryInstallSupport {
 
     public String libraryName() { return "game"; }
 
+    @Override
+    public List<String> libraryNames() {
+        // o Sdl3Backend importa `image.Raster` — a lib `image` copia junto
+        // (a dependência do import-graph; o game sozinho não compila).
+        return List.of("game", "image");
+    }
+
     public List<String> libraryMarkers() { return List.of("Window.kf", "Draw.kf"); }
 
     private static String hostSdl3() {
