@@ -2311,3 +2311,15 @@ MEDIDO com o jar da árvore (`1c3956598`), cada sonda num diretório novo, o MES
 LEITURA: a combinação é o que faz as declarações `extern` dos dois arquivos viverem numa MESMA compilação de módulo junto com os tipos (`Font` guarda handles `Long`, `Sdl3Backend` guarda handles), e o acumulador do `while` lê um slot velho ali. PRÓXIMO (nomeado): copiar o par que falha do `/tmp/ex8` para um teste do Kof4j verbatim (o `Text.kf` real + `game/` + um `RichText`-lite de dois arquivos com o mesmo `height`), depois apagar um `extern` por vez do `Text.kf` e uma classe por vez do `game/` até o `hk` voltar a 20 — esse par de membros é o bug do compilador, e ele entra RED-first com a cópia enxugada.
 
 APP: sem mudança (113 / 2), medido com o jar correto.
+
+## §140 (26/11) — O `altura=0` NÃO REPRODUZ COM UM `Text`+`Sdl3Backend` MÍNIMOS: o par precisa do backend REAL — um `Sdl3Backend` de dois métodos (stub de `createTexture` + `drawTextureSheared` no-op) com os MESMOS dois `extern` SDL que o `Text.kf` chama responde `hk=20`
+
+MEDIDO (jar da árvore, `/tmp/ex10`, o `RichText` sem imports intocado):
+* `enois/Text.kf` real (`extern`s do FreeType, `drawTextSlanted` mantido) + `game/Sdl3Backend.kf` reduzido aos dois `extern` que ele usa + uma classe `Sdl3Backend` de dois métodos (`createTexture` devolvendo 0L, `drawTextureSheared` no-op): `bh=20`, `hk=20`.
+* o mesmo com o `game/` COMPLETO (19 arquivos, o backend real): `hk=0`.
+* sem a classe `Sdl3Backend` nenhuma (só os externs) o programa não linka (`undefined reference game_Sdl3Backend_createTexture`), então a classe é obrigatória mas NÃO suficiente — o gatilho está dentro do corpo do `Sdl3Backend.kf` real.
+* antes (§139): `Text.kf` real + `Font` stub + sem `game/` → 20; um `extern` SDL escrito à mão sozinho → 20.
+
+LEITURA: algo no `Sdl3Backend.kf` real (o número de métodos / campos com handle / os muitos `extern` com `Buffer(U8)` de saída) muda o módulo de um jeito que faz o acumulador do `while` de uma função de OUTRO arquivo ler um slot velho. PRÓXIMO (nomeado): copiar o `/tmp/ex10` com o backend COMPLETO para um teste do Kof4j; depois cortar os membros do `Sdl3Backend.kf` pela metade (binário) — primeiro os métodos que tomam/devolvem handles `Long`, depois os que passam `Buffer(U8)` — até o `hk` virar; o primeiro membro cuja remoção vira o resultado é o bug do compilador (correção RED-first com o par enxugado).
+
+APP: sem mudança (113 / 2), medido com o jar correto.

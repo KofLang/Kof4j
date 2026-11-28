@@ -2613,3 +2613,15 @@ MEASURED with the tree jar (`1c3956598`), each probe a fresh directory, the SAME
 READING: the combination is what makes both files' `extern` declarations live in ONE module compilation together with the types (`Font` holds `Long` handles, `Sdl3Backend` holds handles), and the `while` accumulator reads a stale slot there. NEXT (named): copy `/tmp/ex8`'s failing pair into a Kof4j test verbatim (the real `Text.kf` + `game/` + a two-file `RichText`-lite with the same `height`), then delete one `extern` at a time from `Text.kf` and one class at a time from `game/` until `hk` flips back to 20 — that member pair is the compiler bug, and it gets fixed RED-first with the trimmed copy.
 
 APP: unchanged (113 / 2), measured with the correct jar.
+
+## §140 (26/11) — THE `altura=0` DOES NOT REPRODUCE WITH A MINIMAL `Text`+`Sdl3Backend`: the pair needs the REAL backend class — a two-method `Sdl3Backend` (createTexture stub + drawTextureSheared no-op) plus the SAME two SDL `extern`s that `Text.kf` calls answers `hk=20`
+
+MEASURED (tree jar, `/tmp/ex10`, the import-stripped `RichText` unchanged):
+* real `enois/Text.kf` (FreeType `extern`s, `drawTextSlanted` kept) + `game/Sdl3Backend.kf` reduced to the two `extern`s it needs + a two-method `Sdl3Backend` class (`createTexture` returning 0L, `drawTextureSheared` a no-op): `bh=20`, `hk=20`.
+* the same with the FULL `game/` (19 files, the real backend): `hk=0`.
+* with no `Sdl3Backend` class at all (only the externs) the programme does not link (`undefined reference game_Sdl3Backend_createTexture`), so the class is mandatory but NOT sufficient — the trigger sits inside the real `Sdl3Backend.kf` body.
+* earlier (§139): real `Text.kf` + stub `Font` + no `game/` → 20; a hand-written SDL `extern` alone → 20.
+
+READING: something in the real `Sdl3Backend.kf` (its method count / handle-typed fields / the many `extern` params it passes, e.g. `Buffer(U8)` out-params) changes the module in a way that makes the `while` accumulator of a function in ANOTHER file read a stale slot. NEXT (named): copy `/tmp/ex10` with the FULL backend into a Kof4j test; then cut `Sdl3Backend.kf` members in halves (binary) — first the methods that take/return `Long` handles, then the `Buffer(U8)`-passing ones — until `hk` flips; the first member whose removal flips it is the compiler bug (fix RED-first with the trimmed pair).
+
+APP: unchanged (113 / 2), measured with the correct jar.
