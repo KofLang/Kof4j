@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("1 autorizo, 2 pode focar só no x86-64 por hora, nativo + wasi é o caminho; alem disso depois quem quiser que porte pra arm/risc") — este é o plano novo de backend que o `docs/graphics-gaming.md` exige. STATUS: EM DESENVOLVIMENTO
 doing: fatia 1b POUSADA 22/11 — o `present(DrawList)` resolve cada `DrawCmd.image` pelo cache de textura do backend (`registerTexture`/`textureFor`), desenhando a TEXTURA onde uma esta registrada e o retangulo solido caso contrario; o upload da imagem anda pelo `SDL_UpdateTexture` exportado (um `Buffer(U8)` so' e' legal em assinatura `extern`) e o retangulo de destino e' montado por `floatBits(Int)` (um `SDL_FRect` sao quatro floats)
-next: um app de exemplo do `kof.game` usando as quatro faces medidas (janela + sprite + teclado + mouse) para a pessoa ter um ponto de partida; depois o porte arm/risc (mantenedora: quem quiser), depois a promoção para `docs/`
+next: o porte arm/risc (mantenedora: quem quiser), depois a promoção para `docs/` — o app de exemplo POUSOU (`examples/game/Main.kf`; `GameExampleE2ETest` 1/1 com a dependência `image` copiada: a fatia next do plano feita 28/11 pela lane docs/lab)
 location: repository
 state: active
 
