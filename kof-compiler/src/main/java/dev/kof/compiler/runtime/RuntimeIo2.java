@@ -315,16 +315,14 @@ public final class RuntimeIo2 {
                 movq $-100, %rdi
                 leaq 24(%rbx), %rsi
                 movq $0, %rdx
-                movq $257, %rax
-                syscall
+                call kof_plat_openat
                 testq %rax, %rax
                 js .Lio_bytes_err
                 movq %rax, %rbx
                 subq $144, %rsp
                 movq %rbx, %rdi
                 movq %rsp, %rsi
-                movq $5, %rax
-                syscall
+                call kof_plat_fstat_fd
                 movq 48(%rsp), %r12
                 addq $144, %rsp
                 movq %r12, %rdi
@@ -422,8 +420,7 @@ public final class RuntimeIo2 {
                 leaq 24(%rbx), %rsi
                 xorl %edx, %edx
                 xorl %r10d, %r10d
-                movq $257, %rax
-                syscall
+                call kof_plat_openat
                 testq %rax, %rax
                 js .Lio_range_err
                 movq %rax, %r12      # fd
@@ -436,8 +433,7 @@ public final class RuntimeIo2 {
                 movq %r13, %rsi
                 movq %r15, %rdx
                 movq %r14, %r10
-                movq $17, %rax
-                syscall
+                call kof_plat_pread
                 movq %rax, %r14      # lidos (reusa o slot do offset)
                 # close(fd)
                 movq %r12, %rdi

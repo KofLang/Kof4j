@@ -107,6 +107,22 @@ public final class RuntimePlatIoAt {
                 syscall
                 ret
 
+            .globl kof_plat_pread
+            .type kof_plat_pread, @function
+            kof_plat_pread:
+                # pread64(fd=%rdi, buf=%rsi, len=%rdx, off=%r10) -> n | -errno
+                movq $17, %rax            # SYS_pread64
+                syscall
+                ret
+
+            .globl kof_plat_fstat_fd
+            .type kof_plat_fstat_fd, @function
+            kof_plat_fstat_fd:
+                # fstat(fd=%rdi, buf=%rsi) -> 0 | -errno (o buffer no layout HOST)
+                movq $5, %rax             # SYS_fstat
+                syscall
+                ret
+
             """);
     }
 }

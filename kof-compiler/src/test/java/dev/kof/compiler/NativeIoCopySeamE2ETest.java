@@ -39,6 +39,8 @@ class NativeIoCopySeamE2ETest {
                 var d = Directory("/tmp/kof-io-seam-dir")
                 println(d.create())
                 println(d.delete())
+                println(f.readBytes().length)
+                println(f.readRange(0, 3).length)
             }
             """;
 
@@ -86,6 +88,33 @@ class NativeIoCopySeamE2ETest {
                 "the close goes through the seam:\n" + body);
         assertTrue(body.contains("call kof_plat_fchmod"),
                 "the mode goes through the seam:\n" + body);
+    }
+
+    /**
+     * A face de LEITURA por faixa tambem: o `openat` (257), o `fstat` (5) e o
+     * `pread64` (17) passam pela costura — e o `fstat` do Darwin recebe a
+     * MESMA normalizacao de layout do `kof_plat_stat` (o `struct stat` do
+     * Darwin tem outro layout).
+     */
+    @Test
+    void theReadFacesGoThroughTheSeam(@TempDir Path tmp) throws IOException {
+        String asm = assembly(tmp);
+        for (String fn : java.util.List.of("kof_io_read_bytes", "kof_io_read_range")) {
+            int at = asm.indexOf(fn + ":");
+            assertTrue(at > 0, "the function is in the text: " + fn);
+            String body = asm.substring(at, Math.min(asm.length(), at + 3000));
+            boolean raw = false;
+            for (String line : body.split("\n", -1)) {
+                if (line.trim().equals("syscall")) raw = true;
+            }
+            assertFalse(raw, "no raw syscall left in " + fn + ":\n" + body);
+        }
+        assertTrue(asm.contains("call kof_plat_openat"),
+                "the open goes through the seam");
+        assertTrue(asm.contains("call kof_plat_fstat_fd"),
+                "the fstat goes through the seam");
+        assertTrue(asm.contains("call kof_plat_pread"),
+                "the pread goes through the seam");
     }
 
     /**

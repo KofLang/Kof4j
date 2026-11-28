@@ -784,6 +784,26 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 20 POUSADA 24/11 — as faces de LEITURA entraram na costura
+  (known-bugs §1252).** O `kof_io_read_bytes` e o `kof_io_read_range` usavam
+  syscalls crus (`openat` 257, `fstat` 5, `pread64` 17). Os 4 sítios agora
+  chamam a costura, e a costura ganhou `kof_plat_pread` e
+  `kof_plat_fstat_fd`. **AS DIFERENÇAS MEDIDAS:** o `pread` do Darwin pega
+  o offset em `%rcx` (o syscall põe em `%r10`); e o `fstat` do Darwin
+  escreve o `struct stat` com OUTRO layout — o corpo lê num rascunho e
+  NORMALIZA para o layout do HOST (os mesmos offsets medidos no
+  `kof_plat_stat`: mode@4, nlink@6, mtimespec@48, size@96), então NENHUM
+  chamador muda. **PROVA (executada):** `NativeIoCopySeamE2ETest` 3/3 —
+  RED-first (o syscall cru volta na árvore antiga); `IoE2ETest` 26/26 com o
+  runtime inteiro ainda MONTANDO e LINKANDO no toolchain real do Mach-O; o
+  ratchet da costura **CAI 27 → 23**. **O NÚMERO DO RATCHET (uma correção,
+  medida):** a triagem mediu `x86_out_seam=39` e marcou o `39 → 27` como
+  irreproduzível — remedido nesta árvore o gate imprime
+  `fora-da-costura=23` e o arquivo de baseline diz `23`, e no commit que a
+  triagem mediu (`6d5d7a3fb`) o baseline JÁ dizia `27` — então o `39` veio
+  de um estado com a fatia io3 ainda em voo. A sequência é 148 → 127 → 103
+  → 78 → 49 → 39 → 27 → 23.
+
   **M-6 FATIA 19 POUSADA 24/11 — a família io3 entrou na costura (known-bugs
   §1250).** Os escritores de bytes, o create/createDirectories/delete de
   diretório e a listagem de diretório usavam syscalls crus (`openat` 257,

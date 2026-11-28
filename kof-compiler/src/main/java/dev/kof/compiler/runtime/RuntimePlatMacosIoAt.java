@@ -219,6 +219,68 @@ public final class RuntimePlatMacosIoAt {
                 popq %r15
                 ret
 
+            .globl kof_plat_pread
+            .type kof_plat_pread, @function
+            kof_plat_pread:
+                # pread(fd, buf, len, off) — a 4a arg da libSystem vai em %rcx
+                # (o syscall a põe em %r10)
+                pushq %r15
+                movq %rsp, %r15
+                andq $-16, %rsp
+                movq %r10, %rcx
+                call pread
+                testl %eax, %eax
+                jns .Lppr_ret
+                call __error
+                movl (%rax), %eax
+                negl %eax
+            .Lppr_ret:
+                subq %rsp, %r15
+                addq %r15, %rsp
+                popq %r15
+                ret
+
+            .globl kof_plat_fstat_fd
+            .type kof_plat_fstat_fd, @function
+            kof_plat_fstat_fd:
+                # fstat(fd=%rdi, buf=%rsi) — o struct stat do Darwin tem OUTRO
+                # layout: o corpo le num rascunho e NORMALIZA para o do HOST
+                # (os mesmos offsets medidos do kof_plat_stat: mode@4,
+                # nlink@6, mtimespec@48, size@96).
+                pushq %rbx
+                pushq %r12
+                subq $152, %rsp
+                movq %rsi, %rbx          # o buffer do CHAMADOR (layout host)
+                movq %rsp, %rsi          # o rascunho (layout Darwin)
+                pushq %r15
+                movq %rsp, %r15
+                andq $-16, %rsp
+                call fstat
+                subq %rsp, %r15
+                addq %r15, %rsp
+                popq %r15
+                testl %eax, %eax
+                jne .Lpfd_fail
+                movzwl 4(%rsp), %eax
+                movl %eax, 24(%rbx)      # mode
+                movzwl 6(%rsp), %eax
+                movl %eax, 16(%rbx)      # nlink
+                movq 48(%rsp), %rax
+                movq %rax, 88(%rbx)      # mtim.sec
+                movq 56(%rsp), %rax
+                movq %rax, 96(%rbx)      # mtim.nsec
+                movq 96(%rsp), %rax
+                movq %rax, 48(%rbx)      # size
+                xorl %eax, %eax
+                jmp .Lpfd_ret
+            .Lpfd_fail:
+                movq $-1, %rax
+            .Lpfd_ret:
+                addq $152, %rsp
+                popq %r12
+                popq %rbx
+                ret
+
             """);
     }
 }

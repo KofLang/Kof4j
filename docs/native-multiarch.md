@@ -782,6 +782,26 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 20 LANDED 24/11 — the READ faces joined the seam (known-bugs
+  §1252).** `kof_io_read_bytes` and `kof_io_read_range` used raw syscalls
+  (`openat` 257, `fstat` 5, `pread64` 17). The 4 sites now call the seam,
+  and the seam gained `kof_plat_pread` and `kof_plat_fstat_fd`. **THE
+  MEASURED DIFFERENCES:** the Darwin's `pread` takes the offset in `%rcx`
+  (the syscall puts it in `%r10`); and the Darwin's `fstat` writes the
+  `struct stat` with ANOTHER layout — the body reads it into a scratch and
+  NORMALIZES it to the HOST layout (the same offsets measured for
+  `kof_plat_stat`: mode@4, nlink@6, mtimespec@48, size@96), so NO caller
+  changes. **PROOF (executed):** `NativeIoCopySeamE2ETest` 3/3 — RED-first
+  (the raw syscall is back on the old tree); `IoE2ETest` 26/26 with the
+  whole runtime still ASSEMBLING and LINKING in the real Mach-O toolchain;
+  the seam ratchet **FALLS 27 → 23**. **THE RATCHET NUMBER (a correction,
+  measured):** the triage measured `x86_out_seam=39` and flagged the
+  `39 → 27` as not reproducible; re-measured on this tree the gate prints
+  `fora-da-costura=23` and the baseline file says `23`, and at the commit
+  the triage measured (`6d5d7a3fb`) the baseline ALREADY said `27` — so
+  the `39` came from a state with the io3 slice still in flight. The
+  sequence is 148 → 127 → 103 → 78 → 49 → 39 → 27 → 23.
+
   **M-6 SLICE 19 LANDED 24/11 — the io3 family joined the seam (known-bugs
   §1250).** The byte writers, the directory create/createDirectories/delete and
   the directory listing used raw syscalls (`openat` 257, `getdents64` 217,
