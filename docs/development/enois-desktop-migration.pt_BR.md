@@ -2236,3 +2236,13 @@ LEITURA: uma chamada cujo resultado é usado por um `return` seguinte DEPOIS de 
 PRÓXIMO (nomeado): a sonda em Kof puro acima commitada como E2ETest do Kof4j (a forma `h=20 at=0 pm=20`, reduzida a `listOf`+`while`+`return`), depois o IR da função para ver de onde vem a constante; só então mexer no emit.
 
 APP: sem mudança nesta rodada; bateria 113 / 2 (§1197 + o `altura=0` do pintor).
+
+## §132 (26/11) — ONDE ESTÁ O `altura=0`: O `return` DO PINTOR DESAPARECEU NO FRONTEND, não no emissor — o `paintWrappedMarkedAt` gerado termina o laço de blocos com `.Lkof_1971: movq $0, %rax; leave; ret`, e não há chamada de `RichText.height` no corpo inteiro (874 linhas de asm, um `leave`), embora o fonte termine com `return RichText.height(blocks)`
+
+MEDIDO no pintor do app construído com `KOF_KEEP_ASM=1`: o corpo tem o prólogo, o início do laço (`.Lkof_1969` testando `i < kof_list_size(blocks)`), a cadeia de ramos e a pintura das palavras com `paintWord`/`markAt`, e na saída do laço `movq $0, %rax; leave; ret` — o `return` final compilou para o valor SOBRANTE de uma expressão anterior (`$0`), e a chamada do `height` não está em lugar nenhum da função. É defeito de frontend/IR (o operando do return perdeu a chamada), e é por isso que levar o `return` para dentro do pintor deu `0` em toda forma tentada enquanto o embrulho funciona.
+
+NÃO é o pacote nem a ordem de declaração: uma classe mínima + `while` + `return H.f()` (chamado declarado DEPOIS do chamador) responde `7` nos dois alvos, então a forma trivial está bem — o tamanho/forma do pintor (muitos locais, ramos aninhados, um parâmetro `List`) é o que dispara.
+
+PRÓXIMO (nomeado): despejar o IR do pintor (`CompilerPipeline.prepareForInterpretation`) e olhar as últimas ops do método: se o operando do `KofReturn` é um `KofLoadLiteral(0)` em vez do `KofCall(height)`, o defeito está no lowering da expressão do return depois de um laço (uma propagação de constante ou o "sem valor" padrão de um join de `if`); a correção vai RED-first com um fixture enxugado a partir do pintor.
+
+APP: sem mudança (113 / 2). O embrulho fica até isto fechar.

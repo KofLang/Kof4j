@@ -2538,3 +2538,13 @@ READING: a call whose result is used by a subsequent `return` AFTER a loop, when
 NEXT (named): the pure-Kof probe above committed as a Kof4j E2ETest (`h=20 at=0 pm=20` shape, reduced to `listOf`+`while`+`return`), then the IR of that function to see where the constant comes from; only then touch the emit.
 
 APP: unchanged this round; battery 113 / 2 (§1197 + the painter's `altura=0`).
+
+## §132 (26/11) — WHERE THE `altura=0` IS: THE PAINTER'S `return` DISAPPEARED IN THE FRONTEND, not in the emitter — the generated `paintWrappedMarkedAt` ends the block loop with `.Lkof_1971: movq $0, %rax; leave; ret`, and there is no `RichText.height` call inside the whole body (874 lines of asm, one `leave`), though the source ends with `return RichText.height(blocks)`
+
+MEASURED on the app's painter built with `KOF_KEEP_ASM=1`: the body has the prologue, the loop start (`.Lkof_1969` testing `i < kof_list_size(blocks)`), the branch chain and the word painting with `paintWord`/`markAt`, and at the loop exit `movq $0, %rax; leave; ret` — the final `return` compiled to the LEFT-OVER value of an earlier expression (a `$0`), and the `height` call is nowhere in the function. That is a frontend/IR defect (the return's operand lost the call), which is why moving the `return` into the painter produced `0` in every shape tried while the wrapper form works.
+
+NOT the package nor the declaration order: a minimal class + `while` + `return H.f()` (callee declared AFTER the caller) answers `7` on both targets, so the trivial shape is fine — the painter's size/shape (many locals, nested branches, a `List` parameter) is what triggers it.
+
+NEXT (named): dump the painter's IR (`CompilerPipeline.prepareForInterpretation`) and look at the last ops of the method: if the `KofReturn` operand is a `KofLoadLiteral(0)` instead of the `KofCall(height)`, the defect is in the lowering of the return expression after a loop (a constant-propagation or the "no value" default of an `if` join); the fix goes RED-first with a fixture trimmed from the painter.
+
+APP: unchanged (113 / 2). The wrapper form stays until this closes.
