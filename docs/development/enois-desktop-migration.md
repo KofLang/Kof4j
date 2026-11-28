@@ -2602,3 +2602,14 @@ MEASURED with the tree jar (`87e9d2198`):
 READING (named, not yet proven): the `extern`-bearing module changes the frame/slot layout (the `Font`/`Sdl3Backend` types get handles) and the `while` accumulator reads a stale slot there. NEXT (named): a Kof4j test with a two-file package (`Hooks.kf` carrying one `extern` to libc, e.g. `strlen`, + `Acc.kf` with `while` + a call per iteration + `return acc`), run natively; if it reproduces, delete the extern class first and then the call to find the trigger.
 
 APP: unchanged (113 / 2), measured with the correct jar.
+
+## §139 (26/11) — THE `altura=0` IS BISECTED TO THE APP'S `libs/` LAYOUT: it appears when `Text.kf` holds the FreeType `extern`s AND `game.Sdl3Backend.kf` is in the module; with a plain `Font` stub and no `game/` it answers 20
+
+MEASURED with the tree jar (`1c3956598`), each probe a fresh directory, the SAME `RichText` (parser + `height` untouched) and the SAME `main`:
+* `/tmp/ex8` with `enois/Text.kf` = a plain `class Font { Int px; constructor...; void close() }` and no `game/`: `bh=20`, `hk=20`.
+* `/tmp/ex8` with `enois/Text.kf` = the REAL app file (the FreeType `extern`s) and `game/` (Sdl3Backend + libs) present: `bh=20`, `hk=0`.
+* Removing `Tokens`/`Draw` changes nothing; a hand-written `extern "libSDL3.so.0" SDL_Init(Int): Bool` in a `game/Hooks.kf` beside a stub `Font` answers 20; a bare `extern` packet (`strlen(Buffer(U8))`) in a different package also answers 20. So neither "an `extern` exists" nor "a second package exists" reproduces it — the pair (real `Text.kf` externs + the real `game/` module) does.
+
+READING: the combination is what makes both files' `extern` declarations live in ONE module compilation together with the types (`Font` holds `Long` handles, `Sdl3Backend` holds handles), and the `while` accumulator reads a stale slot there. NEXT (named): copy `/tmp/ex8`'s failing pair into a Kof4j test verbatim (the real `Text.kf` + `game/` + a two-file `RichText`-lite with the same `height`), then delete one `extern` at a time from `Text.kf` and one class at a time from `game/` until `hk` flips back to 20 — that member pair is the compiler bug, and it gets fixed RED-first with the trimmed copy.
+
+APP: unchanged (113 / 2), measured with the correct jar.

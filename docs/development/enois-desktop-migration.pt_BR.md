@@ -2300,3 +2300,14 @@ MEDIDO com o jar da árvore (`87e9d2198`):
 LEITURA (nomeada, ainda não provada): o módulo com `extern` muda o layout de frame/slots (os tipos `Font`/`Sdl3Backend` ganham handles) e o acumulador do `while` lê um slot velho ali. PRÓXIMO (nomeado): um teste do Kof4j com um pacote de dois arquivos (`Hooks.kf` com um `extern` para a libc, ex. `strlen`, + `Acc.kf` com `while` + uma chamada por iteração + `return acc`), rodado nativo; se reproduzir, apagar a classe com extern primeiro e depois a chamada para achar o gatilho.
 
 APP: sem mudança (113 / 2), medido com o jar correto.
+
+## §139 (26/11) — O `altura=0` ESTÁ BISSECADO ATÉ O LAYOUT DO `libs/` DO APP: aparece quando o `Text.kf` carrega os `extern` do FreeType E o `game.Sdl3Backend.kf` está no módulo; com um `Font` stub e sem `game/` responde 20
+
+MEDIDO com o jar da árvore (`1c3956598`), cada sonda num diretório novo, o MESMO `RichText` (parser + `height` intocados) e o MESMO `main`:
+* `/tmp/ex8` com `enois/Text.kf` = um `class Font { Int px; constructor...; void close() }` simples e sem `game/`: `bh=20`, `hk=20`.
+* `/tmp/ex8` com `enois/Text.kf` = o arquivo REAL do app (os `extern` do FreeType) e `game/` (Sdl3Backend + libs) presente: `bh=20`, `hk=0`.
+* Tirar `Tokens`/`Draw` não muda nada; um `extern "libSDL3.so.0" SDL_Init(Int): Bool` escrito à mão num `game/Hooks.kf` ao lado de um `Font` stub dá 20; um `extern` de libc (`strlen(Buffer(U8))`) noutro pacote também dá 20. Então nem "existe um `extern`" nem "existe um segundo pacote" reproduz — o par (externs reais do `Text.kf` + o módulo `game/` real) reproduz.
+
+LEITURA: a combinação é o que faz as declarações `extern` dos dois arquivos viverem numa MESMA compilação de módulo junto com os tipos (`Font` guarda handles `Long`, `Sdl3Backend` guarda handles), e o acumulador do `while` lê um slot velho ali. PRÓXIMO (nomeado): copiar o par que falha do `/tmp/ex8` para um teste do Kof4j verbatim (o `Text.kf` real + `game/` + um `RichText`-lite de dois arquivos com o mesmo `height`), depois apagar um `extern` por vez do `Text.kf` e uma classe por vez do `game/` até o `hk` voltar a 20 — esse par de membros é o bug do compilador, e ele entra RED-first com a cópia enxugada.
+
+APP: sem mudança (113 / 2), medido com o jar correto.
