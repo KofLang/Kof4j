@@ -1,0 +1,154 @@
+package term
+
+// kof.term — o módulo de terminal (issue #1182, library-first, D-KOF-FIRST).
+//
+// A superfície: isTerminal/size/enterRaw/exitRaw/readKey/writeText/cursorTo/
+// hideCursor/showCursor — tudo sobre FFI (isatty/tcgetattr/tcsetattr/ioctl/
+// read/write), que o corpo do issue já provou byte a byte (o struct termios
+// serializado, o TIOCGWINSZ decodificado do peek32, o read de teclas cruas).
+//
+// O ESTADO: o Buffer(U8) só cruza assinatura `extern` (medido 22/11), então o
+// termios original é guardado CAMPO A CAMPO no `TermState` (os Ints) no
+// `enterRaw` e restaurado no `exitRaw` — o programa nunca serializa struct
+// por offset (o atrito nº1 do issue); os offsets mágicos (VMIN/VTIME) ficam
+// AQUI (o atrito nº2).
+//
+// A DEGRADAÇÃO HONESTA (o padrão PROC001): sem terminal (o pipe, o CI, o
+// embed) o `isTerminal` devolve false e o `enterRaw` RECUSA com TERM001 (o
+// código nomeado) — a degradação é explícita, nunca silenciosa.
+//
+// Paridade: JVM (o FFI), Native (a libc direta), JS (TERM001 — o navegador
+// não tem terminal; a degradação honesta). Uso: `import term.Term` +
+// `Term.isTerminal()` (as funções estáticas da classe).
+
+extern "libc.so.6" isatty(Int fd): Int
+extern "libc.so.6" tcgetattr(Int fd, Buffer(U8) termios): Int
+extern "libc.so.6" tcsetattr(Int fd, Int optionalActions, Buffer(U8) termios): Int
+extern "libc.so.6" cfmakeraw(Buffer(U8) termios): void
+extern "libc.so.6" ioctl(Int fd, Int request, Buffer(U8) argp): Int
+extern "libc.so.6" read(Int fd, Buffer(U8) buf, Int count): Int
+extern "libc.so.6" write(Int fd, Buffer(U8) buf, Int count): Int
+
+class Term {
+    // Os offsets do struct termios (Linux x86-64): c_iflag(0..3) c_oflag(4..7)
+    // c_cflag(8..11) c_lflag(12..15) c_line(16) c_cc(17..35) — o VMIN = c_cc[6]
+    // = 23; o VTIME = c_cc[5] = 22. O TIOCGWINSZ = 0x5413 (o winsize = 4 Ints).
+    static Int termiosSize() { return 60 }
+    static Int vminOffset() { return 23 }
+    static Int vtimeOffset() { return 22 }
+    static Int tiocgwinsz() { return 0x5413 }
+
+    static Int iflagOff() { return 0 }
+    static Int oflagOff() { return 4 }
+    static Int cflagOff() { return 8 }
+    static Int lflagOff() { return 12 }
+
+    // term.isTerminal(): o fd 0 É um terminal?
+    static Bool isTerminal() {
+        return isatty(0) == 1
+    }
+
+    // term.size(): [linhas, colunas] via ioctl(TIOCGWINSZ).
+    static Int[] size() {
+        var ws = buffer.alloc(8)
+        ioctl(0, 0x5413, ws)
+        var out = new Int[2]
+        out[0] = buffer.peek32(ws, 0)
+        out[1] = buffer.peek32(ws, 4)
+        return out
+    }
+
+    // O estado do terminal ativo (o termios original, campo a campo):
+    static Int active = 0
+    static Int savedIflag = 0
+    static Int savedOflag = 0
+    static Int savedCflag = 0
+    static Int savedLflag = 0
+    static Int savedVm = 0   // os bytes VTIME|VMIN empacotados (2)
+    static Int savedCc = 0   // os 2 bytes seguintes (o resto do c_cc curto)
+
+    // term.enterRaw(): guarda o termios original no estado da classe, aplica o
+    // raw (cfmakeraw + VMIN=1/VTIME=0) e devolve true. Sem terminal: TERM001.
+    static Bool enterRaw() {
+        if (!isTerminal()) {
+            throw "TERM001: term.enterRaw — o fd 0 não é um terminal (o pipe, o CI, o embed); degrade para o menu por linha"
+        }
+        var t = buffer.alloc(termiosSize())
+        tcgetattr(0, t)
+        savedIflag = buffer.peek32(t, iflagOff())
+        savedOflag = buffer.peek32(t, oflagOff())
+        savedCflag = buffer.peek32(t, cflagOff())
+        savedLflag = buffer.peek32(t, lflagOff())
+        savedVm = buffer.peek8(t, vtimeOffset()) | (buffer.peek8(t, vminOffset()) << 8)
+        savedCc = buffer.peek8(t, vtimeOffset() + 2) | (buffer.peek8(t, vtimeOffset() + 3) << 8)
+        cfmakeraw(t)
+        buffer.poke8(t, vminOffset(), 1)
+        buffer.poke8(t, vtimeOffset(), 0)
+        tcsetattr(0, 0, t)
+        active = 1
+        return true
+    }
+
+    // term.exitRaw(): restaura o termios original campo a campo.
+    static Bool exitRaw() {
+        var t = buffer.alloc(termiosSize())
+        tcgetattr(0, t)
+        buffer.poke32(t, iflagOff(), savedIflag)
+        buffer.poke32(t, oflagOff(), savedOflag)
+        buffer.poke32(t, cflagOff(), savedCflag)
+        buffer.poke32(t, lflagOff(), savedLflag)
+        buffer.poke8(t, vtimeOffset(), savedVm & 255)
+        buffer.poke8(t, vminOffset(), (savedVm >> 8) & 255)
+        buffer.poke8(t, vtimeOffset() + 2, savedCc & 255)
+        buffer.poke8(t, vtimeOffset() + 3, (savedCc >> 8) & 255)
+        var ok = tcsetattr(0, 0, t) == 0
+        active = 0
+        return ok
+    }
+
+    // term.readKey(): UM byte cru do stdin (-1 no EOF/sem-terminal). A tecla
+    // chega CRUA (o ESC=27, o `A`=65...) — o programa decodifica a sequência
+    // que quiser (o atrito nº4 fica com o app, não com o módulo, na v1).
+    static Int readKey() {
+        var b = buffer.alloc(1)
+        var n = read(0, b, 1)
+        if (n <= 0) { return -1 }
+        return buffer.peek8(b, 0) & 255
+    }
+
+    // term.writeText(text): a escrita crua no stdout (sem buffering, o UTF-8
+    // preservado — a KofString É o payload UTF-8).
+    static Int writeText(String text) {
+        var n = text.length()
+        var buf = buffer.alloc(n + 1)
+        var i = 0
+        while (i < n) {
+            buffer.poke8(buf, i, text.charAt(i) as Int)
+            i = i + 1
+        }
+        return write(1, buf, n)
+    }
+
+    // term.cursorTo(row, col): o endereçamento ANSI (1-based).
+    static Bool cursorTo(Int row, Int col) {
+        writeText("\u001b[" + intToStr(row) + ";" + intToStr(col) + "H")
+        return true
+    }
+
+    static Bool hideCursor() { writeText("\u001b[?25l"); return true }
+
+    static Bool showCursor() { writeText("\u001b[?25h"); return true }
+
+    static String intToStr(Int v) {
+        if (v == 0) { return "0" }
+        var d = ""
+        var x = v
+        if (x < 0) { x = 0 - x }
+        while (x > 0) {
+            d = "" + ((48 + x % 10) as Char) + d
+            x = x / 10
+        }
+        if (v < 0) { return "-" + d }
+        return d
+    }
+}
