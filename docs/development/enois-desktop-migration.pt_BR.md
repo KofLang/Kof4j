@@ -2204,3 +2204,21 @@ MEDIDO, num shell novo e num diretório novo: `N.java` = `static int one(String 
 O DEFEITO REAL DO KOF ACHADO NO CAMINHO (reproduzível, sem ambiente no meio): com um `var q = listOf<String>(); q.add("a"); q.add("b")` no `main` ANTES de duas chamadas `G.go(…)`, o run do Kof responde `q=2 a=1 b=1` em vez de `q=2 a=1 b=2` — a lista construída depois dentro de uma função chamada reporta o tamanho da lista anterior, enquanto a MESMA função sem o `q` no `main` responde `a=1 b=2`. O tempo de vida do `q` no frame do chamador muda o `size()` da lista do chamado. PRÓXIMO (nomeado): reduzir a um teste do Kof4j (um frame de chamador com uma lista + um chamado que constrói a própria lista e devolve `size()`), e então olhar o `kof_list_new`/`kof_list_add`/`kof_list_size` E o crescimento do frame do CHAMADOR (o tratamento do resultado de `KofCall` FUNCTION) no emissor.
 
 ESTADO: o RED `NativeListSizeTwoCallsE2ETest` continua NÃO commitado (a forma de duas chamadas não é confiável neste host); app sem mudança (113 testes / 2 falhas: §1197 e o flake §1244).
+
+## §129 (26/11) — A "caneta medida" VOLTOU: o `paintWrappedMarked` devolve a altura pelo próprio caminho de pintura, o `lastPen` morto saiu, e uma sondagem 5× não mostrou flake
+
+MUDANÇA (app): o `paintWrappedMarked` agora é `return paintWrappedMarkedAt(...)` e o `paintWrappedMarkedAt` devolve `RichText.height(blocks)` de DENTRO do passeio (o valor que o laço já carrega), com o helper `lastPen` velho apagado. A nota do §1240 que obrigava a forma antiga ("devolver a altura de fora") está retirada no `known-bugs` §1246 (as leituras eram do host), então o caminho de pintura pode ser dono do valor de novo.
+
+SONDAGEM: uma cópia temporária do corpo do `EnoisBlogCuerpoWrapInsideE2ETest` SEM o print da caneta (seis prints e uma pintura) rodou **4 de 4** limpa pelo `DesktopHarness` — o `rc=139` das rodadas anteriores não apareceu nesta leva, o que bate com o flake do §1244 ser intermitente (`EnoisTextE2ETest` e o print da caneta continuam os dois vermelhos conhecidos).
+
+APP: **113 testes / 1 falha** — só o `0 px` do §1197. Kof4j: sem mudança de código (o defeito do frame do chamador no `size()` do §1246 UPDATE 6 segue ABERTO com o próximo passo nomeado).
+
+## §130 (26/11) — BECO SEM SAÍDA REGISTRADO E DESFEITO: levar o `return` da altura para DENTRO do laço de pintura (a mudança do §129) NÃO funciona; o checkout foi refeito, o shim regenerado, e a bateria voltou a 113 / 1 (só o §1197)
+
+O QUE ACONTECEU: o checkout do app em `/tmp` (tmpfs) se perdeu numa limpeza de disco. Reclonei (`4cfcc35`) e a bateria saiu **113 testes / 112 PULADOS** — o `assumeTrue` do harness pula tudo sem `libs/libkof_text.so` (o shim é artefato, não vai no repositório). Depois de `KOF4J_HOME=/home/mel/Kof4j bash scripts/gen-enois-text.sh` (que regenera `libs/libkof_text.so` e reescreve o `libs/Text.kf` com o caminho absoluto — os dois artefatos, o `Text.kf` revertido com `git checkout`) a bateria é 113 / 2: o `0 px` do §1197 e o `altura=0` do `EnoisBlogCuerpoWrapInsideE2ETest`.
+
+A MUDANÇA DESFEITA: fazer o `paintWrappedMarkedAt` devolver `RichText.height(blocks)` de dentro do passeio (e apagar o `lastPen`) fez aquele print de caneta sair `0`, então a fatia anterior foi revertida — a forma de embrulho (`paintWrappedMarkedAt(...)` e depois `return RichText.height(blocks)`) FICA até o defeito abaixo ser entendido. Uma sonda de quatro linhas com a mesma forma (`while` + `return <local>` / `return 21` depois do laço, no topo e numa classe) responde certo nos dois alvos, então a diferença está no pintor inteiro, não na semântica do `return`-depois-de-`while`.
+
+PRÓXIMO NOMEADO: levar o `paintWrappedMarkedAt` do app, verbatim, para um teste do Kof4j (só precisa de `RichText`+`RichNode`), acrescentar o `println` do valor devolvido e apagar membros até o `0` aparecer — o membro cuja remoção vira o resultado é a fronteira entre a pintura e o passeio (`return` depois de `while`; já suspeito da mesma família do §1246).
+
+APP: o `README` documenta o passo do shim para um checkout novo. Comportamento visível ao usuário sem mudança (o embrulho devolve a mesma altura que o passeio mediu).

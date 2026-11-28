@@ -2506,3 +2506,21 @@ MEASURED, in a fresh shell and a fresh directory: `N.java` = `static int one(Str
 THE REAL KOFT DEFECT FOUND ON THE WAY (reproducible, no environment involvement): with a `var q = listOf<String>(); q.add("a"); q.add("b")` in `main` BEFORE two `G.go(…)` calls, the Kof run answers `q=2 a=1 b=1` instead of `q=2 a=1 b=2` — the list built later in a called function reports the earlier list's size, while the SAME function without the `q` in `main` answers `a=1 b=2`. The `q`'s lifetime in the caller's frame changes the callee's list `size()`. NEXT (named): reduce this to a Kof4j test (a caller frame with one list + a callee building its own list and returning `size()`), then look at `kof_list_new`/`kof_list_add`/`kof_list_size` AND at the CALLER's frame growth (`KofCall` FUNCTION result handling) in the emitter.
 
 STATE: the RED `NativeListSizeTwoCallsE2ETest` stays UNCOMMITTED (its two-call shape cannot be trusted on this host); app unchanged (113 tests / 2 failures: §1197 and the §1244 flake).
+
+## §129 (26/11) — THE "measured pen" RETURNED: `paintWrappedMarked` hands back the walk's height from the painting path itself, the dead `lastPen` is gone, and a 5×-run probe shows no flake
+
+CHANGE (app): `paintWrappedMarked` is now `return paintWrappedMarkedAt(...)` and `paintWrappedMarkedAt` returns `RichText.height(blocks)` from INSIDE the walk (the value the loop already carries), with the stale `lastPen` helper deleted. The §1240 note that had forced the old "return the height from a wrapper" shape is withdrawn in `known-bugs` §1246 (the readings were of the host), so the painting path can own the value again.
+
+PROBE: a temporary copy of the `EnoisBlogCuerpoWrapInsideE2ETest` body WITHOUT the pen print (six prints and a paint) ran **4 of 4** clean through `DesktopHarness` — the `rc=139` of the earlier rounds did not appear in this batch, which matches the §1244 flake being intermittent (`EnoisTextE2ETest` and the pen print stay the two known reds).
+
+APP: **113 tests / 1 failure** — only the §1197 `0 px`. Kof4j: no code change (the caller-frame `size()` defect of §1246 UPDATE 6 stays OPEN with its named next step).
+
+## §130 (26/11) — DEAD END RECORDED AND WITHDRAWN: moving the height `return` INTO the painting loop (the §129 change) does NOT work; the checkout was rebuilt, the shim regenerated, and the battery is back to 113 / 1 (only §1197)
+
+WHAT HAPPENED: the app checkout under `/tmp` (tmpfs) was lost in a disk cleanup. I re-cloned it (`4cfcc35`), and the battery came out **113 tests / 112 SKIPPED** — the harness `assumeTrue` skips everything without `libs/libkof_text.so` (the shim is an artifact, not committed). After `KOF4J_HOME=/home/mel/Kof4j bash scripts/gen-enois-text.sh` (which regenerates `libs/libkof_text.so` and rewrites `libs/Text.kf` with the absolute path — both artifacts, `Text.kf` reverted with `git checkout`) the battery is 113 / 2: the §1197 `0 px` and `EnoisBlogCuerpoWrapInsideE2ETest`'s `altura=0`.
+
+THE WITHDRAWN CHANGE: making `paintWrappedMarkedAt` `return RichText.height(blocks)` from inside the walk (and dropping the `lastPen` stub) made that pen print `0`, so the previous slice was reverted — the wrapper shape (`paintWrappedMarkedAt(...)` then `return RichText.height(blocks)`) STAYS until the defect below is understood. A four-line probe of the same shape (`while` + `return <local>` / `return 21` after the loop, at top level and in a class) answers correctly on both targets, so the difference is in the full painter, not in the `return`-after-`while` semantics.
+
+NAMED NEXT: take the app's `paintWrappedMarkedAt` verbatim into a Kof4j test (it only needs `RichText`+`RichNode`), add `println` of the return value, and delete members until the `0` appears — the member whose removal flips it is the boundary between the painting and the walk (`return` after `while`; already suspicious of the same family as §1246).
+
+APP: `README` documents the shim step for a fresh checkout. User-visible behaviour unchanged (the wrapper returns the same height the walk measured).
