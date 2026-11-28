@@ -2288,3 +2288,15 @@ MEDIDO com o `lib/kof.jar` reconstruído da árvore (`60d01d947`, o compilador q
 PRÓXIMO (nomeado): um reprodutor mínimo do `RichText.height` — `height(listOf(RichText.blocks("a").get(0)))` dá 0 enquanto `blockHeight(blocks.get(0))` dá o valor certo; depois cortar dentro do `height` (um laço sobre os blocos somando `blockHeight`) até o 0 aparecer. O `NativeStaticOverloadCallSiteE2ETest` já guarda a classe de falha de link por sobrecarga, então link de definição errada está excluído.
 
 APP: sem mudança (113 / 2), medido com o jar correto.
+
+## §138 (26/11) — O `altura=0` ESTREITADO: o laço do `RichText.height` (`while`, `h = h + blockHeight(blocks.get(i))`) dá 20 quando o módulo NÃO tem arquivos com `extern`, e 0 quando `Text`/`Tokens`/`Draw` (com os `extern` do FreeType/SDL) estão no mesmo pacote — o mesmo fonte, o mesmo `while`
+
+MEDIDO com o jar da árvore (`87e9d2198`):
+* `/tmp/hg` — `RichText` com os `import enois.Text`/`Tokens`/`game.Sdl3Backend` removidos e o único parâmetro `Sdl3Backend` tipado `Int` (sem precisar de módulo com `extern`): `blockHeight=20`, `height(listOf(blk))=20`, `height(blocks)=20`.
+* `/tmp/hg2` — o `RichText`, `Text`, `Tokens`, `Draw` e `game` REAIS no módulo: `blockHeight=20`, `height(listOf(blk))=0`, `height(blocks)=0`.
+* Trocando o `while` do `height` por um `for (var b in blocks)` os DOIS casos dão 20 — então o defeito é a interação do acumulador do `while` com um valor produzido por chamada dentro de um módulo que carrega declarações `extern`, não a aritmética do `height`.
+* A mesma forma de `while` é usada por várias funções do corpo (`listHeight`, `tableHeight`, …), então se espera que afete mais do que o pintor.
+
+LEITURA (nomeada, ainda não provada): o módulo com `extern` muda o layout de frame/slots (os tipos `Font`/`Sdl3Backend` ganham handles) e o acumulador do `while` lê um slot velho ali. PRÓXIMO (nomeado): um teste do Kof4j com um pacote de dois arquivos (`Hooks.kf` com um `extern` para a libc, ex. `strlen`, + `Acc.kf` com `while` + uma chamada por iteração + `return acc`), rodado nativo; se reproduzir, apagar a classe com extern primeiro e depois a chamada para achar o gatilho.
+
+APP: sem mudança (113 / 2), medido com o jar correto.

@@ -2590,3 +2590,15 @@ MEASURED with `lib/kof.jar` rebuilt from the tree (`60d01d947`, the §1207-aware
 NEXT (named): a minimal `RichText.height` reproducer — `height(listOf(RichText.blocks("a").get(0)))` prints 0 while `blockHeight(blocks.get(0))` prints the right value; then cut inside `height` (a loop over blocks summing `blockHeight`) until the 0 appears. `NativeStaticOverloadCallSiteE2ETest` already guards the overload-link class of failure, so a wrong-definition link is excluded.
 
 APP: unchanged (113 / 2), measured with the correct jar.
+
+## §138 (26/11) — THE `altura=0` NARROWED: `RichText.height`'s loop (`while`, `h = h + blockHeight(blocks.get(i))`) returns 20 when the module has NO `extern` files, and 0 when `Text`/`Tokens`/`Draw` (with the FreeType/SDL `extern`s) are in the same package — the same source, the same `while`
+
+MEASURED with the tree jar (`87e9d2198`):
+* `/tmp/hg` — `RichText` with `import enois.Text`/`Tokens`/`game.Sdl3Backend` removed and the only `Sdl3Backend` parameter typed `Int` (so no `extern` module is needed): `blockHeight=20`, `height(listOf(blk))=20`, `height(blocks)=20`.
+* `/tmp/hg2` — the REAL `RichText`, `Text`, `Tokens`, `Draw` and `game` in the module: `blockHeight=20`, `height(listOf(blk))=0`, `height(blocks)=0`.
+* Replacing the `while` inside `height` with a `for (var b in blocks)` makes BOTH cases 20 — so the defect is the interaction of the `while` accumulator with a value produced by a call inside a module that carries `extern` declarations, not `height`'s arithmetic.
+* The same `while` shape is used by many functions of the body (`listHeight`, `tableHeight`, …), so this is expected to affect more than the painter.
+
+READING (named, not yet proven): the `extern`-bearing module changes the frame/slot layout (the `Font`/`Sdl3Backend` types get handles) and the `while` accumulator reads a stale slot there. NEXT (named): a Kof4j test with a two-file package (`Hooks.kf` carrying one `extern` to libc, e.g. `strlen`, + `Acc.kf` with `while` + a call per iteration + `return acc`), run natively; if it reproduces, delete the extern class first and then the call to find the trigger.
+
+APP: unchanged (113 / 2), measured with the correct jar.
