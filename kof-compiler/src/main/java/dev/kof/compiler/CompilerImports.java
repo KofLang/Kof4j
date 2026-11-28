@@ -159,6 +159,37 @@ public final class CompilerImports {
                             .sorted(java.util.Comparator.comparing(p -> p.getFileName().toString()))
                             .toList()) {
                         if (compiledFiles.contains(kf.toAbsolutePath().normalize().toString())) {
+                            // #1207 (o §1207 face): a CÓPIA DO ARQUIVO NA BIBLIOTECA
+                            // OFICIAL pode carregar imports que a cópia do módulo
+                            // NÃO tem (o caso Énois: o arquivo duplicado importa
+                            // o tipo que o IRMÃO usa como PARÂMETRO). A lib é a
+                            // autoridade do import-graph: os imports dela entram
+                            // na fila mesmo quando a cópia do módulo vence — as
+                            // declarações NÃO são re-lidas (o dedup cuida).
+                            for (Path libRoot : libraryRoots) {
+                                Path twin = libRoot.resolve(
+                                        moduleRoot.toAbsolutePath().normalize()
+                                                .relativize(kf.toAbsolutePath().normalize()));
+                                if (!Files.isRegularFile(twin)) continue;
+                                try {
+                                    String twinCode = Files.readString(twin);
+                                    String twinName = twin.getFileName().toString();
+                                    dev.kof.compiler.lang.LanguageProfile tp =
+                                            dev.kof.compiler.lang.LanguageProfile.forFileName(twinName);
+                                    DiagnosticCollector ts = new DiagnosticCollector();
+                                    Parser tpar = new Parser(new Lexer(twinCode, twinName, ts, tp).tokenize(), ts, twinName, tp);
+                                    CompilationUnitNode tu = dev.kof.compiler.lang.PortuKofParity.normalize(tp, tpar.parse());
+                                    if (ts.hasErrors() || tu == null) continue;
+                                    if (fileImports != null) fileImports.record(tu);
+                                    for (String libImp : tu.imports()) {
+                                        String impKey = libImp.endsWith(".*")
+                                                ? libImp.substring(0, libImp.length() - 2) : libImp;
+                                        graph.computeIfAbsent(imp, k -> new java.util.HashSet<>()).add(impKey);
+                                        if (!imports.contains(libImp)) { imports.add(libImp); queue.add(libImp); }
+                                    }
+                                } catch (IOException ignored) {
+                                }
+                            }
                             continue; // §1207: já é fonte da unidade
                         }
                         if (!visitedDirs.add(kf.toAbsolutePath().normalize().toString())) {
@@ -233,6 +264,68 @@ public final class CompilerImports {
                     String pkgKey = kfFile.toAbsolutePath().normalize().toString();
                     if (!visitedDirs.add(pkgKey)) {
                         continue;
+                    }
+                    // #1207: os IRMÃOS DO PACOTE no MÓDULO também são lidos —
+                    // a semântica do módulo mesclado: os tipos do pacote
+                    // resolvem MUTUAMENTE (o Esq usa o `Lib` que o IRMÃO Dup do
+                    // MESMO pacote importa). Os imports dos IRMÃOS DA LIB não
+                    // entram (o PKG007 auto-ref medido: o pacote da lib importa
+                    // o próprio pacote e vira ciclo) — só os do módulo.
+                    Path modulePkgDir = moduleRoot != null
+                            ? moduleRoot.resolve(pkgPart.replace('.', '/')) : null;
+                    if (modulePkgDir != null && Files.isDirectory(modulePkgDir)) {
+                        try (var sib = Files.walk(modulePkgDir, 1)) {
+                            for (Path sibF : sib.filter(x -> isKofExtSource(x.getFileName().toString())).toList()) {
+                                if (sibF.toAbsolutePath().normalize().equals(kfFile.toAbsolutePath().normalize())) continue;
+                                if (compiledFiles.contains(sibF.toAbsolutePath().normalize().toString())) continue;
+                                try {
+                                    String sibCode = Files.readString(sibF);
+                                    String sibName = sibF.getFileName().toString();
+                                    dev.kof.compiler.lang.LanguageProfile sp =
+                                            dev.kof.compiler.lang.LanguageProfile.forFileName(sibName);
+                                    DiagnosticCollector sds = new DiagnosticCollector();
+                                    Parser spar = new Parser(new Lexer(sibCode, sibName, sds, sp).tokenize(), sds, sibName, sp);
+                                    CompilationUnitNode su = dev.kof.compiler.lang.PortuKofParity.normalize(sp, spar.parse());
+                                    if (sds.hasErrors() || su == null) continue;
+                                    if (fileImports != null) fileImports.record(su);
+                                    for (String libImp : su.imports()) {
+                                        String impKey = libImp.endsWith(".*")
+                                                ? libImp.substring(0, libImp.length() - 2) : libImp;
+                                        graph.computeIfAbsent(imp, k -> new java.util.HashSet<>()).add(impKey);
+                                        if (!imports.contains(libImp)) { imports.add(libImp); queue.add(libImp); }
+                                    }
+                                    for (AstNode d : su.declarations()) {
+                                        declarationPackages.put(d, su.packageName());
+                                        decls.add(d);
+                                    }
+                                } catch (IOException ignored) {
+                                }
+                            }
+                        } catch (IOException ignored) {
+                        }
+                    }
+                    for (Path libRoot : libraryRoots) {
+                        Path twin = libRoot.resolve(pkgPart.replace('.', '/'))
+                                .resolve(kfFile.getFileName().toString());
+                        if (!Files.isRegularFile(twin)) continue;
+                        try {
+                            String twinCode = Files.readString(twin);
+                            String twinName = twin.getFileName().toString();
+                            dev.kof.compiler.lang.LanguageProfile tp =
+                                    dev.kof.compiler.lang.LanguageProfile.forFileName(twinName);
+                            DiagnosticCollector ts = new DiagnosticCollector();
+                            Parser tpar = new Parser(new Lexer(twinCode, twinName, ts, tp).tokenize(), ts, twinName, tp);
+                            CompilationUnitNode tu = dev.kof.compiler.lang.PortuKofParity.normalize(tp, tpar.parse());
+                            if (ts.hasErrors() || tu == null) continue;
+                            if (fileImports != null) fileImports.record(tu);
+                            for (String libImp : tu.imports()) {
+                                String impKey = libImp.endsWith(".*")
+                                        ? libImp.substring(0, libImp.length() - 2) : libImp;
+                                graph.computeIfAbsent(imp, k -> new java.util.HashSet<>()).add(impKey);
+                                if (!imports.contains(libImp)) { imports.add(libImp); queue.add(libImp); }
+                            }
+                        } catch (IOException ignored) {
+                        }
                     }
                     try {
                         String code = Files.readString(kfFile);

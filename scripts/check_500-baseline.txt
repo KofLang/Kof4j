@@ -20,6 +20,7 @@
 541	kof-compiler/src/main/java/dev/kof/compiler/CompilerDriver.java
 588	kof-compiler/src/main/java/dev/kof/compiler/CompilerDriverState.java
 564	kof-compiler/src/main/java/dev/kof/compiler/CompilerExprLowering.java
+532	kof-compiler/src/main/java/dev/kof/compiler/CompilerImports.java
 557	kof-compiler/src/main/java/dev/kof/compiler/CompilerPipeline.java
 548	kof-compiler/src/main/java/dev/kof/compiler/CompilerRecordSupport.java
 557	kof-compiler/src/main/java/dev/kof/compiler/CompilerTypes.java
@@ -94,7 +95,7 @@
 577	kof-compiler/src/main/java/dev/kof/compiler/parser/StatementParser.java
 575	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeConcurrency.java
 509	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeDb3.java
-516	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeIo3.java
+504	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeIo3.java
 521	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeJsonUtils.java
 560	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeListLookups.java
 513	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeMedia.java
@@ -103,7 +104,7 @@
 518	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeOrm5.java
 504	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeOrm8.java
 515	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeOrmHistory3.java
-595	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimePlat.java
+596	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimePlat.java
 506	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimePlatMacos.java
 926	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeStringEdit.java
 576	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeStringsConv.java
